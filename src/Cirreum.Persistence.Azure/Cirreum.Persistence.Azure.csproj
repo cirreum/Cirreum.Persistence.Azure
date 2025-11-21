@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<RootNamespace>Cirreum.Persistence</RootNamespace>
+		<Description>Persistence Library using Azure Cosmos DB for NoSQL.</Description>
+		<PackageTags>persistence,cosmos,nosql</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Identity" Version="1.17.1" />
+		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.55.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="Cirreum.Core" Version="1.0.11" />
+		<PackageReference Include="Cirreum.Persistence" Version="1.0.102" />
+		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Azure.Identity" />
+		<Using Include="System.Linq" />
+		<Using Include="System.Linq.Expressions" />
+		<Using Include="Microsoft.Azure.Cosmos" />
+		<Using Include="Cirreum.Persistence" />
+		<Using Include="Cirreum.Persistence.Internal" />
+		<Using Include="Cirreum.Persistence.Internal.Factories" />
+		<Using Include="Cirreum.Persistence.Internal.Logging" />
+		<Using Include="Cirreum.Persistence.Internal.Processors" />
+		<Using Include="Cirreum.Providers" />
+	</ItemGroup>
+
+</Project>
