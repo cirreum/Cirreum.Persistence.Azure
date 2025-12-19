@@ -25,43 +25,110 @@
 ## Quick Start
 
 ```csharp
-// Configure services
-services.AddAzureCosmosDB(configuration);
+// Program.cs - Register with IHostApplicationBuilder
+builder.AddCosmosDb("default", settings => {
+    settings.ConnectionString = "AccountEndpoint=https://...;AccountKey=...";
+    settings.DatabaseId = "MyDatabase";
+    settings.OptimizeBandwidth = true;
+});
 
 // Inject and use repository
 public class UserService
 {
     private readonly IRepository<User> _userRepository;
-    
-    public UserService(IRepository<User> userRepository)
+
+    public UserService([FromKeyedServices("default")] IRepository<User> userRepository)
     {
         _userRepository = userRepository;
     }
-    
-    public async Task<User> GetUserAsync(string id)
+
+    public async Task<User?> GetUserAsync(string id, CancellationToken ct)
     {
-        return await _userRepository.GetAsync(id);
+        return await _userRepository.GetAsync(id, cancellationToken: ct);
     }
 }
 ```
 
 ## Configuration
 
-Configure Azure Cosmos DB settings in `appsettings.json`:
+### Programmatic Configuration
+
+```csharp
+// Simple connection string
+builder.AddCosmosDb("default", "AccountEndpoint=https://...;AccountKey=...");
+
+// Full configuration
+builder.AddCosmosDb("default", settings => {
+    settings.ConnectionString = "AccountEndpoint=https://...;AccountKey=...";
+    settings.DatabaseId = "MyDatabase";
+    settings.ApplicationName = "MyApp";
+    settings.OptimizeBandwidth = true;
+    settings.AllowBulkExecution = false;
+    settings.IsAutoResourceCreationEnabled = true;
+}, clientOptions => {
+    clientOptions.ConnectionMode = ConnectionMode.Direct;
+}, healthOptions => {
+    healthOptions.ContainerIds = ["users", "orders"];
+});
+```
+
+### Multiple Database Instances
+
+```csharp
+// Register multiple databases with keyed services
+builder.AddCosmosDb("primary", "AccountEndpoint=https://primary.documents.azure.com;AccountKey=...");
+builder.AddCosmosDb("analytics", "AccountEndpoint=https://analytics.documents.azure.com;AccountKey=...");
+
+// Inject specific instance
+public class AnalyticsService([FromKeyedServices("analytics")] IRepository<Event> repository)
+{
+    // Uses the analytics database connection
+}
+```
+
+### appsettings.json Configuration
 
 ```json
 {
   "ServiceProviders": {
     "Persistence": {
       "Azure": {
-        "Default": {
-          "ConnectionString": "AccountEndpoint=https://...",
-          "DatabaseName": "MyDatabase",
-          "OptimizeBandwidth": true
+        "default": {
+          "Name": "MyCosmosDb",
+          "DatabaseId": "MyDatabase",
+          "ApplicationName": "MyApp",
+          "OptimizeBandwidth": true,
+          "AllowBulkExecution": false,
+          "IsAutoResourceCreationEnabled": true,
+          "HealthOptions": {
+            "ContainerIds": ["users", "orders"]
+          }
         }
       }
     }
   }
+}
+```
+
+The `Name` property is used to resolve the connection string via `Configuration.GetConnectionString(name)`. For production, store connection strings in Azure Key Vault using the naming convention `ConnectionStrings--{Name}` (e.g., `ConnectionStrings--MyCosmosDb`).
+
+## In-Memory Testing
+
+For unit testing, use the built-in in-memory repository:
+
+```csharp
+// Register in-memory repository for testing
+services.AddInMemoryCosmosRepository("test");
+
+// Inject in tests
+public class UserServiceTests
+{
+    private readonly IRepository<User> _repository;
+
+    public UserServiceTests([FromKeyedServices("test")] IRepository<User> repository)
+    {
+        _repository = repository;
+    }
 }
 ```
 
