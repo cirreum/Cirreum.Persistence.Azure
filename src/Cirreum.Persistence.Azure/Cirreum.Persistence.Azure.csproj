@@ -14,7 +14,7 @@
 		<PackageReference Include="Azure.Identity" Version="1.17.1" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.56.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="Cirreum.Core" Version="1.0.25" />
+		<PackageReference Include="Cirreum.Core" Version="1.0.26" />
 		<PackageReference Include="Cirreum.Persistence" Version="1.0.104" />
 		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.5" />
 	</ItemGroup>
