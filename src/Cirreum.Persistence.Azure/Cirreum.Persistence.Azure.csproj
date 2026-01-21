@@ -12,11 +12,11 @@
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Identity" Version="1.17.1" />
-		<PackageReference Include="Cirreum.Persistence.NoSql" Version="1.0.3" />
+		<PackageReference Include="Cirreum.Persistence.NoSql" Version="1.0.4" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.56.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="Cirreum.Core" Version="1.0.36" />
-		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.5" />
+		<PackageReference Include="Cirreum.Core" Version="1.0.37" />
+		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.6" />
 	</ItemGroup>
 
 	<ItemGroup>
