@@ -77,11 +77,6 @@ internal static class CosmosRegistrationExtensions {
 		// Needs to be enabled for either logging or tracing to work.
 		settings.ClientOptions.CosmosClientTelemetryOptions.DisableDistributedTracing = false;
 
-		if (IsEmulatorConnectionString(settings.ConnectionString)) {
-			settings.ClientOptions.ConnectionMode = ConnectionMode.Direct;
-			settings.ClientOptions.LimitToEndpoint = true;
-		}
-
 		return new DefaultCosmosClientProvider(
 			settings.AccountEndpoint is not null ?
 			new CosmosClient(settings.AccountEndpoint.OriginalString, new DefaultAzureCredential(), settings.ClientOptions) :
