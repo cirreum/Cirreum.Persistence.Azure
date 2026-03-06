@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<RootNamespace>Cirreum.Persistence</RootNamespace>
@@ -15,8 +15,8 @@
 		<PackageReference Include="Cirreum.Persistence.NoSql" Version="1.0.4" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.57.1" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="Cirreum.Core" Version="1.0.41" />
-		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.7" />
+		<PackageReference Include="Cirreum.Core" Version="1.0.42" />
+		<PackageReference Include="Cirreum.ServiceProvider" Version="1.0.8" />
 	</ItemGroup>
 
 	<ItemGroup>
