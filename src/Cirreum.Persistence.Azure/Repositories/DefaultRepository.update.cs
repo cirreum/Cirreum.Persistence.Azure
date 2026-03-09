@@ -1,7 +1,6 @@
 ﻿namespace Cirreum.Persistence;
 
 using Cirreum.Exceptions;
-using Humanizer;
 using System;
 using System.Collections.Generic;
 using System.Net;
