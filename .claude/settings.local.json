@@ -6,7 +6,8 @@
       "Bash(findstr:*)",
       "Bash(dotnet build:*)",
       "Bash(dir /s/b %USERPROFILE%.nugetpackagescirreum.persistence.nosql*)",
-      "Bash(~/.dotnet/tools/ilspycmd:*)"
+      "Bash(~/.dotnet/tools/ilspycmd:*)",
+      "Bash(xargs grep:*)"
     ],
     "deny": []
   }
