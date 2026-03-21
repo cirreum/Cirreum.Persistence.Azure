@@ -32,11 +32,13 @@ internal sealed class ContainerFactory<TEntity>(
 		var containerName = ContainerNameResolver.GetContainerName(itemType);
 		var partitionKeyPath = PartitionKeyPathResolver.GetPartitionKeyPath(itemType);
 		var uniqueKeyPolicy = UniqueKeyPolicyResolver.GetUniqueKeyPolicy(itemType);
+		var indexingPolicy = IndexingPolicyResolver.GetIndexingPolicy(itemType);
 
 		return new ContainerProperties() {
 			Id = containerName,
 			PartitionKeyPath = partitionKeyPath,
 			UniqueKeyPolicy = uniqueKeyPolicy ?? new(),
+			IndexingPolicy = indexingPolicy ?? new(),
 			PartitionKeyDefinitionVersion = PartitionKeyDefinitionVersion.V2
 		};
 

@@ -16,6 +16,7 @@
 
 - **Repository Pattern Implementation** - Clean abstraction over Azure Cosmos DB operations
 - **Multi-Instance Support** - Keyed service registration for multiple database connections
+- **Declarative Indexing Policies** - Attribute-driven indexing configuration on entity classes
 - **In-Memory Testing** - Built-in in-memory repository for unit testing
 - **Health Checks** - Native ASP.NET Core health check integration
 - **Performance Optimized** - Bandwidth optimization and efficient query processing
@@ -111,6 +112,56 @@ public class AnalyticsService([FromKeyedServices("analytics")] IRepository<Event
 ```
 
 The `Name` property is used to resolve the connection string via `Configuration.GetConnectionString(name)`. For production, store connection strings in Azure Key Vault using the naming convention `ConnectionStrings--{Name}` (e.g., `ConnectionStrings--MyCosmosDb`).
+
+## Declarative Indexing Policy
+
+When `IsAutoResourceCreationEnabled` is `true`, containers are auto-created with indexing policies defined directly on your entity classes via attributes from `Cirreum.Persistence.NoSql`:
+
+```csharp
+[Container("tasks")]
+[PartitionKeyPath("/clientId")]
+[IndexingPolicy(IndexingMode.Consistent, Automatic = true)]
+[ExcludedPath("/description/*")]
+[ExcludedPath("/content/*")]
+[ExcludedPath("/*")]
+public record TaskItem : Entity {
+
+    [IncludedPath]
+    [CompositeIndex("type-client-date", CompositePathSortOrder.Ascending, position: 0)]
+    [CompositeIndex("type-client-status-date", CompositePathSortOrder.Ascending, position: 0)]
+    public string Type { get; set; }
+
+    [IncludedPath]
+    [CompositeIndex("type-client-date", CompositePathSortOrder.Ascending, position: 1)]
+    [CompositeIndex("type-client-status-date", CompositePathSortOrder.Ascending, position: 1)]
+    public string ClientId { get; set; }
+
+    [IncludedPath]
+    [CompositeIndex("type-client-status-date", CompositePathSortOrder.Ascending, position: 2)]
+    public string Status { get; set; }
+
+    [IncludedPath]
+    [CompositeIndex("type-client-date", CompositePathSortOrder.Descending, position: 2)]
+    [CompositeIndex("type-client-status-date", CompositePathSortOrder.Descending, position: 3)]
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public string Description { get; set; }
+    public string Content { get; set; }
+
+}
+```
+
+The resolver automatically derives JSON paths from `[JsonPropertyName]` attributes or camelCase property names. Entities without `[IndexingPolicy]` use the Cosmos DB default policy (auto-index all paths).
+
+### Supported Attributes
+
+| Attribute | Target | Description |
+|-----------|--------|-------------|
+| `[IndexingPolicy]` | Class | Sets indexing mode (`Consistent`, `Lazy`, `None`) and `Automatic` flag |
+| `[IncludedPath]` | Property | Includes the property path in indexing (auto-derives `/{name}/?`) |
+| `[ExcludedPath]` | Class | Excludes a path from indexing (supports wildcards) |
+| `[CompositeIndex]` | Property | Groups properties into composite indexes by name, ordered by position |
+| `[SpatialIndex]` | Property | Adds spatial indexing (`Point`, `LineString`, `Polygon`, `MultiPolygon`) |
 
 ## In-Memory Testing
 

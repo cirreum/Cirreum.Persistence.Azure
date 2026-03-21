@@ -55,9 +55,16 @@ dotnet restore
 - `Factories/` - Container and client factory abstractions
 - `Processors/` - Query processing logic (`ICosmosQueryableProcessor`)
 - `Providers/` - Cosmos client provider abstractions
-- `Resolvers/` - Container name, partition key, and unique key resolution
+- `Resolvers/` - Container name, partition key, unique key, and indexing policy resolution
 
 ### Key Patterns
+
+**Indexing Policy Resolution:**
+- `IndexingPolicyResolver` reads `[IndexingPolicy]`, `[IncludedPath]`, `[ExcludedPath]`, `[CompositeIndex]`, and `[SpatialIndex]` attributes from entity types
+- Builds a `Microsoft.Azure.Cosmos.IndexingPolicy` object used during container auto-creation
+- Returns `null` when no `[IndexingPolicy]` attribute is present (Cosmos defaults apply)
+- Path auto-derivation: explicit path on attribute → `[JsonPropertyName]` → camelCase via `Camelize()`
+- Composite indexes are grouped by `GroupName` and ordered by `Position`
 
 **Partial Classes:** Repository functionality is split across multiple partial class files:
 - `.create.cs`, `.read.cs`, `.update.cs`, `.delete.cs`, `.query.cs`, `.batch.cs`, `.count.cs`, `.exists.cs`, `.paging.cs`
