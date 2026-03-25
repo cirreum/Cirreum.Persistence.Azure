@@ -22,10 +22,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: new QueryRequestOptions {
-					MaxConcurrency = -1,
-					MaxItemCount = 1
-				},
+				requestOptions: CreateQueryOptions(maxItemCount: 1),
 				linqSerializerOptions: new CosmosLinqSerializerOptions {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 				})
@@ -56,9 +53,7 @@ sealed partial class DefaultRepository<TEntity> {
 		var query =
 			container
 				.GetItemLinqQueryable<TEntity>(
-					requestOptions: new QueryRequestOptions {
-						MaxConcurrency = -1
-					},
+					requestOptions: CreateQueryOptions(),
 					linqSerializerOptions: new CosmosLinqSerializerOptions {
 						PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 					})
@@ -132,9 +127,7 @@ sealed partial class DefaultRepository<TEntity> {
 		var itemsReturned = 0;
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: new QueryRequestOptions() {
-					MaxItemCount = maxResults ?? -1
-				},
+				requestOptions: CreateQueryOptions(maxItemCount: maxResults ?? -1),
 				linqSerializerOptions: new CosmosLinqSerializerOptions {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 				}

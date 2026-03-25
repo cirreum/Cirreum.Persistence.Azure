@@ -12,9 +12,7 @@ sealed partial class DefaultRepository<TEntity> {
 		var finalPredicate = CombineFilters(null, includeDeleted);
 
 		var query = container.GetItemLinqQueryable<TEntity>(
-			requestOptions: new QueryRequestOptions {
-				MaxConcurrency = -1
-			},
+			requestOptions: CreateQueryOptions(),
 			linqSerializerOptions: new CosmosLinqSerializerOptions {
 				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 			})
@@ -41,9 +39,7 @@ sealed partial class DefaultRepository<TEntity> {
 		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
 		var query = container.GetItemLinqQueryable<TEntity>(
-			requestOptions: new QueryRequestOptions {
-				MaxConcurrency = -1
-			},
+			requestOptions: CreateQueryOptions(),
 			linqSerializerOptions: new CosmosLinqSerializerOptions {
 				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 			})

@@ -17,14 +17,9 @@ sealed partial class DefaultRepository<TEntity> {
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
 		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
-		var options = new QueryRequestOptions() {
-			MaxConcurrency = -1,
-			MaxItemCount = pageSize
-		};
-
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: options,
+				requestOptions: CreateQueryOptions(maxItemCount: pageSize),
 				continuationToken: cursor,
 				linqSerializerOptions: new CosmosLinqSerializerOptions {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
@@ -56,10 +51,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: new() {
-					MaxConcurrency = -1,
-					MaxItemCount = pageSize
-				},
+				requestOptions: CreateQueryOptions(maxItemCount: pageSize),
 				linqSerializerOptions: new() {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 				})
@@ -102,10 +94,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: new() {
-					MaxConcurrency = -1,
-					MaxItemCount = fetchCount
-				},
+				requestOptions: CreateQueryOptions(maxItemCount: fetchCount),
 				linqSerializerOptions: new() {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 				})

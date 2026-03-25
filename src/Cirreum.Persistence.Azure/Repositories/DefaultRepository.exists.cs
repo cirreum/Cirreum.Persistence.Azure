@@ -49,10 +49,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
-				requestOptions: new QueryRequestOptions {
-					MaxConcurrency = -1,
-					MaxItemCount = 1
-				},
+				requestOptions: CreateQueryOptions(maxItemCount: 1),
 				linqSerializerOptions: new CosmosLinqSerializerOptions {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 				})

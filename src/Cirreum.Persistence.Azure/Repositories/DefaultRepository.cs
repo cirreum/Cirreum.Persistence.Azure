@@ -93,6 +93,16 @@ sealed partial class DefaultRepository<TEntity>
 	private static readonly bool _requiresTypeFilter =
 		PartitionKeyPathResolver.GetPartitionKeyPath<TEntity>() == "/entityType";
 
+	private static readonly PartitionKey? _entityTypePartitionKey =
+		_requiresTypeFilter ? new PartitionKey(typeof(TEntity).Name) : null;
+
+	private static QueryRequestOptions CreateQueryOptions(int maxItemCount = -1, int maxConcurrency = -1) =>
+		new() {
+			MaxConcurrency = maxConcurrency,
+			MaxItemCount = maxItemCount,
+			PartitionKey = _entityTypePartitionKey
+		};
+
 	private static Expression<Func<TEntity, bool>> CombineFilters(
 		Expression<Func<TEntity, bool>>? predicate,
 		bool includeDeleted) {
