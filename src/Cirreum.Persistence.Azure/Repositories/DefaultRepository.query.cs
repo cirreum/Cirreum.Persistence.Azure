@@ -18,7 +18,7 @@ sealed partial class DefaultRepository<TEntity> {
 		ArgumentNullException.ThrowIfNull(predicate);
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
-		var finalPredicate = DefaultRepository<TEntity>.CombineWithDeleteFilter(predicate, includeDeleted);
+		var finalPredicate = DefaultRepository<TEntity>.CombineFilters(predicate, includeDeleted);
 
 		var query = container
 			.GetItemLinqQueryable<TEntity>(
@@ -51,7 +51,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
 
-		var finalPredicate = DefaultRepository<TEntity>.CombineWithDeleteFilter(predicate, includeDeleted);
+		var finalPredicate = DefaultRepository<TEntity>.CombineFilters(predicate, includeDeleted);
 
 		var query =
 			container
@@ -127,7 +127,7 @@ sealed partial class DefaultRepository<TEntity> {
 		ArgumentNullException.ThrowIfNull(predicate);
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
-		var finalPredicate = DefaultRepository<TEntity>.CombineWithDeleteFilter(predicate, includeDeleted);
+		var finalPredicate = DefaultRepository<TEntity>.CombineFilters(predicate, includeDeleted);
 
 		var itemsReturned = 0;
 		var query = container

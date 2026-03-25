@@ -15,22 +15,21 @@ sealed partial class DefaultRepository<TEntity> {
 		CancellationToken cancellationToken = default) {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
+		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
 		var options = new QueryRequestOptions() {
 			MaxConcurrency = -1,
 			MaxItemCount = pageSize
 		};
 
-		IQueryable<TEntity> query = container
-			.GetItemLinqQueryable<TEntity>(requestOptions: options, continuationToken: cursor);
-
-		if (predicate is not null) {
-			query = query.Where(predicate);
-		}
-
-		if (!includeDeleted && typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-			query = query.Where(x => !((IDeletableEntity)x).IsDeleted);
-		}
+		var query = container
+			.GetItemLinqQueryable<TEntity>(
+				requestOptions: options,
+				continuationToken: cursor,
+				linqSerializerOptions: new CosmosLinqSerializerOptions {
+					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+				})
+			.Where(finalPredicate);
 
 		this._logger.LogQueryConstructed(query);
 
@@ -53,8 +52,9 @@ sealed partial class DefaultRepository<TEntity> {
 		CancellationToken cancellationToken = default) {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
+		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
-		IQueryable<TEntity> query = container
+		var query = container
 			.GetItemLinqQueryable<TEntity>(
 				requestOptions: new() {
 					MaxConcurrency = -1,
@@ -62,15 +62,8 @@ sealed partial class DefaultRepository<TEntity> {
 				},
 				linqSerializerOptions: new() {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
-				});
-
-		if (predicate is not null) {
-			query = query.Where(predicate);
-		}
-
-		if (!includeDeleted && typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-			query = query.Where(x => !((IDeletableEntity)x).IsDeleted);
-		}
+				})
+			.Where(finalPredicate);
 
 		// Get total count
 		var countResponse = await query.CountAsync(cancellationToken).ConfigureAwait(false);
@@ -102,11 +95,12 @@ sealed partial class DefaultRepository<TEntity> {
 		CancellationToken cancellationToken = default) {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
+		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
 		// Fetch count + 1 to check if there are more items
 		var fetchCount = count + 1;
 
-		IQueryable<TEntity> query = container
+		var query = container
 			.GetItemLinqQueryable<TEntity>(
 				requestOptions: new() {
 					MaxConcurrency = -1,
@@ -114,17 +108,9 @@ sealed partial class DefaultRepository<TEntity> {
 				},
 				linqSerializerOptions: new() {
 					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
-				});
-
-		if (predicate is not null) {
-			query = query.Where(predicate);
-		}
-
-		if (!includeDeleted && typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-			query = query.Where(x => !((IDeletableEntity)x).IsDeleted);
-		}
-
-		query = query.Take(fetchCount);
+				})
+			.Where(finalPredicate)
+			.Take(fetchCount);
 
 		this._logger.LogQueryConstructed(query);
 

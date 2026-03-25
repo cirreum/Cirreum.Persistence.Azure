@@ -1,4 +1,4 @@
-﻿namespace Cirreum.Persistence;
+namespace Cirreum.Persistence;
 
 using Microsoft.Azure.Cosmos.Linq;
 
@@ -9,15 +9,16 @@ sealed partial class DefaultRepository<TEntity> {
 		CancellationToken cancellationToken = default) {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
+		var finalPredicate = CombineFilters(null, includeDeleted);
 
-		IQueryable<TEntity> query = container.GetItemLinqQueryable<TEntity>(
+		var query = container.GetItemLinqQueryable<TEntity>(
 			requestOptions: new QueryRequestOptions {
 				MaxConcurrency = -1
-			});
-
-		if (!includeDeleted && typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-			query = query.Where(x => !((IDeletableEntity)x).IsDeleted);
-		}
+			},
+			linqSerializerOptions: new CosmosLinqSerializerOptions {
+				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+			})
+			.Where(finalPredicate);
 
 		this._logger.LogQueryConstructed<TEntity>($"Count: {query}");
 
@@ -37,11 +38,14 @@ sealed partial class DefaultRepository<TEntity> {
 		ArgumentNullException.ThrowIfNull(predicate);
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
-		var finalPredicate = CombineWithDeleteFilter(predicate, includeDeleted);
+		var finalPredicate = CombineFilters(predicate, includeDeleted);
 
 		var query = container.GetItemLinqQueryable<TEntity>(
 			requestOptions: new QueryRequestOptions {
 				MaxConcurrency = -1
+			},
+			linqSerializerOptions: new CosmosLinqSerializerOptions {
+				PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
 			})
 			.Where(finalPredicate);
 

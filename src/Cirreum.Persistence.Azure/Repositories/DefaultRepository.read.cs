@@ -92,21 +92,22 @@ sealed partial class DefaultRepository<TEntity> {
 		CancellationToken cancellationToken = default) {
 
 		var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
-		IReadOnlyList<TEntity> items;
-		double charge;
+		var finalPredicate = CombineFilters(null, includeDeleted);
 
-		if (!includeDeleted && typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-			const string query = "SELECT * FROM c WHERE (IS_DEFINED(c.isDeleted) = false OR c.isDeleted = false)";
-			this._logger.LogQueryConstructed<TEntity>($"GetAll (Filtered): {query}");
-			return await this.QueryAsync(query, cancellationToken);
-		}
+		var query = container
+			.GetItemLinqQueryable<TEntity>(
+				requestOptions: new QueryRequestOptions { MaxConcurrency = -1 },
+				linqSerializerOptions: new CosmosLinqSerializerOptions {
+					PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+				})
+			.Where(finalPredicate);
 
-		this._logger.LogQueryConstructed<TEntity>("GetAll");
+		this._logger.LogQueryConstructed(query);
 
-		(items, charge) =
-			await this._queryableProcessor.IterateGetAllAsync<TEntity>(container, cancellationToken: cancellationToken);
+		(var items, var charge) =
+			await this._queryableProcessor.IterateAsync(query, cancellationToken);
 
-		this._logger.LogQueryExecuted<TEntity>("GetAll", charge);
+		this._logger.LogQueryExecuted(query, charge);
 		return items;
 
 	}

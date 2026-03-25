@@ -2,6 +2,7 @@
 
 using Cirreum.Persistence.Configuration;
 using Cirreum.Persistence.Extensions;
+using Cirreum.Persistence.Internal.Resolvers;
 using Cirreum.Security;
 using Cirreum.ServiceProvider.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,20 +90,36 @@ sealed partial class DefaultRepository<TEntity>
 		return pk;
 	}
 
-	private static Expression<Func<TEntity, bool>> CombineWithDeleteFilter(
+	private static readonly bool _requiresTypeFilter =
+		PartitionKeyPathResolver.GetPartitionKeyPath<TEntity>() == "/entityType";
+
+	private static Expression<Func<TEntity, bool>> CombineFilters(
 		Expression<Func<TEntity, bool>>? predicate,
 		bool includeDeleted) {
 
+		var combined = predicate;
+
+		// Filter by entity type when container is shared (partitioned by entityType)
+		if (_requiresTypeFilter) {
+			var typeFilter = (Expression<Func<TEntity, bool>>)(x =>
+				x.EntityType == typeof(TEntity).Name);
+
+			combined = combined == null
+				? typeFilter
+				: combined.AndAlso(typeFilter);
+		}
+
+		// Filter out soft-deleted unless explicitly included
 		if (!typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity)) || includeDeleted) {
-			return predicate ?? (x => true);
+			return combined ?? (x => true);
 		}
 
 		var deleteFilter = (Expression<Func<TEntity, bool>>)(x =>
 			!((IDeletableEntity)x).IsDeleted);
 
-		return predicate == null
+		return combined == null
 			? deleteFilter
-			: predicate.AndAlso(deleteFilter);
+			: combined.AndAlso(deleteFilter);
 	}
 
 }
