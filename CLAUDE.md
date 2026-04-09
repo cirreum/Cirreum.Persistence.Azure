@@ -67,14 +67,26 @@ dotnet restore
 - Composite indexes are grouped by `GroupName` and ordered by `Position`
 
 **Partial Classes:** Repository functionality is split across multiple partial class files:
-- `.create.cs`, `.read.cs`, `.update.cs`, `.delete.cs`, `.query.cs`, `.batch.cs`, `.count.cs`, `.exists.cs`, `.paging.cs`
+- `DefaultRepository<TEntity>`: `.create.cs`, `.read.cs`, `.update.cs`, `.delete.cs`, `.query.cs`, `.batch.cs`, `.count.cs`, `.exists.cs`, `.paging.cs`
+- `DefaultProtectedRepository<TEntity>`: `.create.cs`, `.read.cs`, `.update.cs`, `.delete.cs`, `.query.cs`, `.move.cs`, `.delegated.cs`
 
 **Dependency Injection:** Heavy use of Microsoft DI with:
 - Keyed services for multi-tenancy
 - Factory pattern for Azure Cosmos containers
 - Health check integration
+- Auto-registration of `IProtectedRepository<>` → `DefaultProtectedRepository<>` and `IAccessEntryProvider<>` → `DefaultAccessEntryProvider<>` (both keyed and non-keyed) via `CosmosRegistrationExtensions`
 
 **Security Integration:** Uses `IUserStateAccessor` from `Cirreum.Security` for user context
+
+**Protected Resource System (ACL):**
+- `IProtectedRepository<TEntity>` — extends `IRepository<TEntity>` with permission-aware CRUD operations for entities implementing `IProtectedResource`
+- `DefaultProtectedRepository<TEntity>` — sealed implementation; splits across partial files (`.read.cs`, `.create.cs`, `.update.cs`, `.delete.cs`, `.query.cs`, `.move.cs`, `.delegated.cs`)
+- `DefaultAccessEntryProvider<TEntity>` (internal, in `Internal/Providers/`) — zero-config `IAccessEntryProvider<T>` auto-registered via DI; implements `GetByIdAsync` and `GetManyByIdAsync` (Cosmos `ReadManyItemsAsync`). Other members use interface defaults
+- `RepositoryAccessEntryProvider<TEntity>` — optional abstract base class for custom hierarchy logic; provides try/catch pattern for `GetByIdAsync` and batch `GetManyByIdAsync`
+- Uses exception flow (throw on auth failure), not `Result<T>` pipeline — consistent with the persistence repo's convention
+- `MoveAsync` — built-in reparenting with ancestor chain cascade to all descendants via `ARRAY_CONTAINS` query
+- Auto-populates `AncestorResourceIds` on create (Cosmos patch via `SetByPath` to bypass init-only setters)
+- `SupportsAncestorPath()` — cached `InterfaceMap` reflection to detect entity opt-in for materialized ancestors
 
 ## Framework Dependencies
 
