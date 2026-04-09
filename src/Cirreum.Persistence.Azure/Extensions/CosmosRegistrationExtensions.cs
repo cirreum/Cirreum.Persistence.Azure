@@ -5,6 +5,7 @@ using Cirreum.Persistence.Configuration;
 using Cirreum.Persistence.Health;
 using Cirreum.Persistence.Internal;
 using Cirreum.Persistence.Internal.Providers;
+using Cirreum.Authorization.Resources;
 using Cirreum.ServiceProvider.Configuration;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Caching.Memory;
@@ -45,6 +46,8 @@ internal static class CosmosRegistrationExtensions {
 		services.Add(ServiceDescriptor.DescribeKeyed(typeof(IReadOnlyRepository<>), serviceKey, typeof(DefaultRepository<>), lifetime));
 		services.Add(ServiceDescriptor.DescribeKeyed(typeof(IWriteOnlyRepository<>), serviceKey, typeof(DefaultRepository<>), lifetime));
 		services.Add(ServiceDescriptor.DescribeKeyed(typeof(IRepository<>), serviceKey, typeof(DefaultRepository<>), lifetime));
+		services.Add(ServiceDescriptor.DescribeKeyed(typeof(IProtectedRepository<>), serviceKey, typeof(DefaultProtectedRepository<>), lifetime));
+		services.Add(ServiceDescriptor.DescribeKeyed(typeof(IAccessEntryProvider<>), serviceKey, typeof(DefaultAccessEntryProvider<>), lifetime));
 
 		// Register Default (non-Keyed) Repositories (will create its own unique instance)
 		if (serviceKey.Equals(ServiceProviderSettings.DefaultKey, StringComparison.OrdinalIgnoreCase)) {
@@ -52,6 +55,8 @@ internal static class CosmosRegistrationExtensions {
 			services.Add(ServiceDescriptor.Describe(typeof(IReadOnlyRepository<>), typeof(DefaultRepository<>), lifetime));
 			services.Add(ServiceDescriptor.Describe(typeof(IWriteOnlyRepository<>), typeof(DefaultRepository<>), lifetime));
 			services.Add(ServiceDescriptor.Describe(typeof(IRepository<>), typeof(DefaultRepository<>), lifetime));
+			services.Add(ServiceDescriptor.Describe(typeof(IProtectedRepository<>), typeof(DefaultProtectedRepository<>), lifetime));
+			services.Add(ServiceDescriptor.Describe(typeof(IAccessEntryProvider<>), typeof(DefaultAccessEntryProvider<>), lifetime));
 		}
 
 	}
