@@ -1,3 +1,7 @@
+# Default — auto-detect text vs binary, force CRLF in the working tree
+# (Windows-only codebase; per-extension rules below inherit eol=crlf)
+* text=auto eol=crlf
+
 *.doc  diff=astextplain
 *.DOC	diff=astextplain
 *.docx	diff=astextplain
@@ -49,4 +53,7 @@
 *.vbproj text merge=union 
 *.fsproj text merge=union 
 *.dbproj text merge=union 
-*.sln text eol=crlf merge=union 
+*.sln text eol=crlf merge=union
+
+# Shell scripts must keep LF regardless of platform
+*.sh text eol=lf
