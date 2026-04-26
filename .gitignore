@@ -416,3 +416,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Per-release notes file consumed by MajorRelease.ps1 — GitHub Release becomes the canonical record
+RELEASE-NOTES.md
