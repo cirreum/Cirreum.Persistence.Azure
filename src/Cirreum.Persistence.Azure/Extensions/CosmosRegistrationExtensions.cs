@@ -1,18 +1,17 @@
 ﻿namespace Cirreum.Persistence.Extensions;
 
+using Cirreum.Authorization.Resources;
 using Cirreum.Persistence;
 using Cirreum.Persistence.Configuration;
 using Cirreum.Persistence.Health;
 using Cirreum.Persistence.Internal;
 using Cirreum.Persistence.Internal.Providers;
-using Cirreum.Authorization.Resources;
 using Cirreum.ServiceProvider.Configuration;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
-using System.Data.Common;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
@@ -106,26 +105,6 @@ internal static class CosmosRegistrationExtensions {
 		return client;
 
 	}
-	private const string EmulatorAccountKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
-	private static bool IsEmulatorConnectionString(string? connectionString) {
-
-		if (connectionString == null) {
-			return false;
-		}
-
-		var builder = new DbConnectionStringBuilder {
-			ConnectionString = connectionString
-		};
-		if (!builder.TryGetValue("AccountKey", out var v)) {
-			return false;
-		}
-
-		var accountKeyFromConnectionString = v.ToString();
-
-		return accountKeyFromConnectionString == EmulatorAccountKey;
-
-	}
-
 
 	public static AzureCosmosHealthCheck CreateAzureCosmosHealthCheck(
 		this IServiceProvider serviceProvider,
