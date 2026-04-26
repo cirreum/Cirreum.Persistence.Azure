@@ -1,7 +1,6 @@
 namespace Cirreum.Persistence;
 
 using Cirreum.Persistence.Internal.Logging;
-using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 
 /// <summary>

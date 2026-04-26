@@ -1,6 +1,5 @@
 namespace Cirreum.Persistence;
 
-using Cirreum.Authorization.Resources;
 using Permission = Cirreum.Authorization.Permission;
 
 /// <summary>
