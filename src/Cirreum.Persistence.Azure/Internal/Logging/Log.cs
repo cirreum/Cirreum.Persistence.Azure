@@ -79,6 +79,16 @@ internal static partial class Log {
 
 
 
+	// Infos
+
+	[LoggerMessage(
+		EventId = EventIds.CosmosInnerRepositoryScopeOpenedId,
+		Level = LogLevel.Information,
+		Message = "Inner repository scope opened for item type {CosmosItemType} by {CallerMember} at {CallerFile}:{CallerLine}")]
+	public static partial void InnerRepositoryScopeOpened(this ILogger logger,
+		string CosmosItemType, string CallerMember, string CallerFile, int CallerLine, Exception? exception);
+
+
 	// Warnings
 
 	[LoggerMessage(

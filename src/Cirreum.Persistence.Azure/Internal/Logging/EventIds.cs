@@ -61,7 +61,10 @@ internal static class EventIds {
 	//
 	//20_101 - 20_200 Info Events
 	//
-
+	internal const int CosmosInnerRepositoryScopeOpenedId = 20_101;
+	public static readonly EventId CosmosInnerRepositoryScopeOpened = new(
+		CosmosInnerRepositoryScopeOpenedId,
+		nameof(CosmosInnerRepositoryScopeOpened));
 
 
 	//

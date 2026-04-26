@@ -44,6 +44,9 @@ internal static class LoggerExtensions {
 
 
 	// Infos
+	public static void LogInnerRepositoryScopeOpened<TEntity>(
+		this ILogger logger, string callerMember, string callerFile, int callerLine) where TEntity : IEntity =>
+		logger.InnerRepositoryScopeOpened(typeof(TEntity).Name, callerMember, callerFile, callerLine, null);
 
 
 	// Warnings

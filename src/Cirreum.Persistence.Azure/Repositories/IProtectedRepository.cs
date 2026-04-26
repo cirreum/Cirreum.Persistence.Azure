@@ -1,13 +1,15 @@
 namespace Cirreum.Persistence;
 
-using Cirreum.Authorization;
 using Cirreum.Authorization.Resources;
+using System.Runtime.CompilerServices;
 using Permission = Cirreum.Authorization.Permission;
 
 /// <summary>
 /// A repository interface for entities that carry embedded ACLs via <see cref="IProtectedResource"/>.
-/// Extends <see cref="IRepository{TEntity}"/> with permission-aware overloads that automatically
-/// evaluate object-level access using <see cref="IResourceAccessEvaluator"/>.
+/// Exposes only permission-aware operations that automatically evaluate object-level access using
+/// <see cref="IResourceAccessEvaluator"/>. The underlying <see cref="IRepository{TEntity}"/> is
+/// reachable in a scoped, audited way via
+/// <see cref="UseInnerRepositoryAsync(Func{IRepository{TEntity}, CancellationToken, ValueTask}, CancellationToken, string, string, int)"/>.
 /// </summary>
 /// <typeparam name="TEntity">
 /// The entity type, which must implement both <see cref="IEntity"/> (persistence) and
@@ -34,9 +36,15 @@ using Permission = Cirreum.Authorization.Permission;
 /// metadata (total count, has-next) unreliable. Use query overloads and page manually
 /// when ACL filtering is required.
 /// </para>
+/// <para>
+/// This interface intentionally does <b>not</b> extend <see cref="IRepository{TEntity}"/>.
+/// Operations outside the ACL-aware surface (system maintenance, projections, cross-cutting
+/// reads) must be performed via
+/// <see cref="UseInnerRepositoryAsync(Func{IRepository{TEntity}, CancellationToken, ValueTask}, CancellationToken, string, string, int)"/>,
+/// which logs every entry for audit.
+/// </para>
 /// </remarks>
 public interface IProtectedRepository<TEntity>
-	: IRepository<TEntity>
 	where TEntity : IEntity, IProtectedResource {
 
 	/// <summary>
@@ -107,25 +115,69 @@ public interface IProtectedRepository<TEntity>
 		Permission permission,
 		CancellationToken cancellationToken = default);
 
+
 	/// <summary>
-	/// Deletes an entity after verifying the caller has <paramref name="permission"/>
-	/// on it.
+	/// When <typeparamref name="TEntity"/> implements <see cref="IDeletableEntity"/>, Soft-Deletes the entity
+	/// after verifying the caller has <paramref name="permission"/> on it.
 	/// </summary>
+	/// <param name="value">The entity to delete.</param>
+	/// <param name="permission">The permission required on the entity.</param>
+	/// <param name="cancellationToken">The cancellation token to use when making asynchronous operations.</param>
+	/// <returns>A <see cref="ValueTask"/> representing the asynchronous delete operation.</returns>
 	/// <exception cref="Exception">Thrown when the caller lacks the required permission.</exception>
-	ValueTask<TEntity> DeleteAsync(
+	ValueTask DeleteAsync(
 		TEntity value,
 		Permission permission,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>
-	/// Loads then deletes the entity identified by <paramref name="id"/> after verifying
-	/// the caller has <paramref name="permission"/> on it.
+	/// When <typeparamref name="TEntity"/> implements <see cref="IDeletableEntity"/>, Soft-Deletes the entity
+	/// identified by <paramref name="id"/> after verifying the caller has <paramref name="permission"/> on it.
 	/// </summary>
+	/// <param name="id">The string identifier.</param>
+	/// <param name="permission">The permission required on the entity.</param>
+	/// <param name="cancellationToken">The cancellation token to use when making asynchronous operations.</param>
+	/// <returns>A <see cref="ValueTask"/> representing the asynchronous delete operation.</returns>
+	/// <exception cref="Exception">Thrown when the caller lacks the required permission.</exception>
+	ValueTask DeleteAsync(
+		string id,
+		Permission permission,
+		CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// When <paramref name="softDelete"/> is <see langword="true"/> and <typeparamref name="TEntity"/> implements
+	/// <see cref="IDeletableEntity"/>, Soft-Deletes the entity after verifying the caller has
+	/// <paramref name="permission"/> on it; otherwise performs a hard delete.
+	/// </summary>
+	/// <param name="value">The entity to delete.</param>
+	/// <param name="permission">The permission required on the entity.</param>
+	/// <param name="cancellationToken">The cancellation token to use when making asynchronous operations.</param>
+	/// <param name="softDelete">When <see langword="true"/> and <typeparamref name="TEntity"/> implements <see cref="IDeletableEntity"/>, performs a soft delete instead of a hard delete.</param>
+	/// <returns>A <see cref="ValueTask{TEntity}"/> representing the deleted entity.</returns>
+	/// <exception cref="Exception">Thrown when the caller lacks the required permission.</exception>
+	ValueTask<TEntity> DeleteAsync(
+		TEntity value,
+		Permission permission,
+		CancellationToken cancellationToken,
+		bool softDelete = true);
+
+	/// <summary>
+	/// When <paramref name="softDelete"/> is <see langword="true"/> and <typeparamref name="TEntity"/> implements
+	/// <see cref="IDeletableEntity"/>, Soft-Deletes the entity identified by <paramref name="id"/> after verifying
+	/// the caller has <paramref name="permission"/> on it; otherwise performs a hard delete.
+	/// </summary>
+	/// <param name="id">The string identifier.</param>
+	/// <param name="permission">The permission required on the entity.</param>
+	/// <param name="cancellationToken">The cancellation token to use when making asynchronous operations.</param>
+	/// <param name="softDelete">When <see langword="true"/> and <typeparamref name="TEntity"/> implements <see cref="IDeletableEntity"/>, performs a soft delete instead of a hard delete.</param>
+	/// <returns>A <see cref="ValueTask{TEntity}"/> representing the deleted entity.</returns>
 	/// <exception cref="Exception">Thrown when the caller lacks the required permission.</exception>
 	ValueTask<TEntity> DeleteAsync(
 		string id,
 		Permission permission,
-		CancellationToken cancellationToken = default);
+		CancellationToken cancellationToken,
+		bool softDelete = true);
+
 
 	/// <summary>
 	/// Moves an entity to a new parent, updating its <see cref="IProtectedResource.ParentResourceId"/>
@@ -146,5 +198,35 @@ public interface IProtectedRepository<TEntity>
 		string? newParentResourceId,
 		Permission permission,
 		CancellationToken cancellationToken = default);
+
+
+	/// <summary>
+	/// Provides scoped access to the underlying <see cref="IRepository{TEntity}"/> for
+	/// operations that fall outside the ACL-aware surface (system maintenance, projections,
+	/// cross-cutting reads, etc.). Each call is logged with the entity type for audit.
+	/// </summary>
+	/// <remarks>
+	/// The inner repository reference is intentionally scoped to the lifetime of
+	/// <paramref name="action"/> — do not capture or persist it outside the callback.
+	/// </remarks>
+	/// <param name="action">Asynchronous work to perform against the inner repository.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <param name="callerMember">Compiler-supplied; do not pass.</param>
+	/// <param name="callerFile">Compiler-supplied; do not pass.</param>
+	/// <param name="callerLine">Compiler-supplied; do not pass.</param>
+	ValueTask UseInnerRepositoryAsync(
+		Func<IRepository<TEntity>, CancellationToken, ValueTask> action,
+		CancellationToken cancellationToken = default,
+		[CallerMemberName] string callerMember = "",
+		[CallerFilePath] string callerFile = "",
+		[CallerLineNumber] int callerLine = 0);
+
+	/// <inheritdoc cref="UseInnerRepositoryAsync(Func{IRepository{TEntity}, CancellationToken, ValueTask}, CancellationToken, string, string, int)"/>
+	ValueTask<TResult> UseInnerRepositoryAsync<TResult>(
+		Func<IRepository<TEntity>, CancellationToken, ValueTask<TResult>> action,
+		CancellationToken cancellationToken = default,
+		[CallerMemberName] string callerMember = "",
+		[CallerFilePath] string callerFile = "",
+		[CallerLineNumber] int callerLine = 0);
 
 }

@@ -2,6 +2,7 @@ namespace Cirreum.Persistence;
 
 using Cirreum.Authorization.Resources;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
 /// <summary>
@@ -14,8 +15,10 @@ using System.Collections.Concurrent;
 /// </typeparam>
 /// <remarks>
 /// <para>
-/// All base <see cref="IRepository{TEntity}"/> methods delegate directly to the inner repository
-/// without ACL checks — use the permission-aware overloads for enforced access control.
+/// All public members enforce permission checks via <see cref="IResourceAccessEvaluator"/>.
+/// For operations outside the ACL-aware surface, callers must use
+/// <see cref="UseInnerRepositoryAsync(Func{IRepository{TEntity}, CancellationToken, ValueTask}, CancellationToken, string, string, int)"/>,
+/// which logs every entry for audit.
 /// </para>
 /// <para>
 /// Registered as <b>Scoped</b> to match the lifetime of <see cref="IResourceAccessEvaluator"/>
@@ -30,6 +33,7 @@ sealed partial class DefaultProtectedRepository<TEntity>
 
 	private readonly IRepository<TEntity> _repository;
 	private readonly IResourceAccessEvaluator _evaluator;
+	private readonly ILogger<DefaultProtectedRepository<TEntity>> _logger;
 
 	/// <summary>
 	/// Checks (cached per type) whether <typeparamref name="TEntity"/> has overridden
@@ -58,9 +62,11 @@ sealed partial class DefaultProtectedRepository<TEntity>
 	/// </summary>
 	public DefaultProtectedRepository(
 		IRepository<TEntity> repository,
-		IResourceAccessEvaluator evaluator) {
+		IResourceAccessEvaluator evaluator,
+		ILogger<DefaultProtectedRepository<TEntity>> logger) {
 		this._repository = repository;
 		this._evaluator = evaluator;
+		this._logger = logger;
 	}
 
 	/// <summary>
@@ -70,9 +76,11 @@ sealed partial class DefaultProtectedRepository<TEntity>
 	public DefaultProtectedRepository(
 		[ServiceKey] string key,
 		IServiceProvider services,
-		IResourceAccessEvaluator evaluator) {
+		IResourceAccessEvaluator evaluator,
+		ILogger<DefaultProtectedRepository<TEntity>> logger) {
 		this._repository = services.GetRequiredKeyedService<IRepository<TEntity>>(key);
 		this._evaluator = evaluator;
+		this._logger = logger;
 	}
 
 }
