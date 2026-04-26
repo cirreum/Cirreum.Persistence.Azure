@@ -23,56 +23,51 @@ sealed partial class DefaultRepository<TEntity> {
 
 		(var optimizeBandwidth, var options) = this.RequestOptions;
 
-		if (softDelete) {
+		// Hard delete path - requires explicit opt-in
+		if (softDelete is false) {
+			try {
 
-			if (!typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-				throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not support soft delete");
-			}
+				var response = await container
+					.DeleteItemAsync<TEntity>(value.Id, pk, options, cancellationToken)
+					.ConfigureAwait(false);
 
-			if (value is IDeletableEntity deletable) {
+				this._logger.LogItemDeleted<TEntity>(value.Id);
 
-				var user = await _userAccessor.GetUser();
-				deletable.DeletedBy = user.Name;
-				deletable.DeletedOn = this._datetimeService.UtcOffset;
-				deletable.DeletedInTimeZone = this._datetimeService.LocalTimeZoneId;
-				deletable.IsDeleted = true;
+				return optimizeBandwidth ? value : response.Resource;
 
-				if (value is IEtagEntity valueWithEtag) {
-					if (string.IsNullOrWhiteSpace(valueWithEtag.Etag)) {
-						throw new InvalidOperationException($"Cannot soft-delete entity with ID {value.Id}: Missing valid ETag");
-					}
-					options.IfMatchEtag = valueWithEtag.Etag;
-				}
-
-				try {
-
-					var response = await container
-						.ReplaceItemAsync(value, value.Id, pk, options, cancellationToken)
-						.ConfigureAwait(false);
-
-					_logger.LogItemSoftDeleted<TEntity>(value.Id);
-
-					return optimizeBandwidth ? value : response.Resource;
-
-				} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) {
-					throw new NotFoundException(value.Id);
-				} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed) {
-					throw new ConcurrencyException(value.Id);
-				}
-			} else {
-				// This shouldn't happen due to type check above, but just in case
-				throw new InvalidOperationException($"Entity with id {value.Id} does not support soft delete");
+			} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) {
+				throw new NotFoundException(value.Id);
+			} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed) {
+				throw new ConcurrencyException(value.Id);
 			}
 		}
 
-		// Hard delete path - requires explicit opt-in
+		// Soft delete path - requires the entity to implement IDeletableEntity
+		if (!typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
+			throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not support soft delete");
+		}
+
+		var deletable = (IDeletableEntity)value;
+		var user = await _userAccessor.GetUser();
+		deletable.DeletedBy = user.Name;
+		deletable.DeletedOn = this._datetimeService.UtcOffset;
+		deletable.DeletedInTimeZone = this._datetimeService.LocalTimeZoneId;
+		deletable.IsDeleted = true;
+
+		if (value is IEtagEntity valueWithEtag) {
+			if (string.IsNullOrWhiteSpace(valueWithEtag.Etag)) {
+				throw new InvalidOperationException($"Cannot soft-delete entity with ID {value.Id}: Missing valid ETag");
+			}
+			options.IfMatchEtag = valueWithEtag.Etag;
+		}
+
 		try {
 
 			var response = await container
-				.DeleteItemAsync<TEntity>(value.Id, pk, options, cancellationToken)
+				.ReplaceItemAsync(value, value.Id, pk, options, cancellationToken)
 				.ConfigureAwait(false);
 
-			this._logger.LogItemDeleted<TEntity>(value.Id);
+			_logger.LogItemSoftDeleted<TEntity>(value.Id);
 
 			return optimizeBandwidth ? value : response.Resource;
 
@@ -95,41 +90,40 @@ sealed partial class DefaultRepository<TEntity> {
 		bool softDelete = true) {
 		ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-		if (softDelete) {
-
-			if (!typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
-				throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not support soft delete");
-			}
-
-			// First read the item
-			var value =
-				await this.GetAsync(id, false, cancellationToken)
-				?? throw new NotFoundException(id);
-
-			return await this.DeleteAsync(value, cancellationToken, softDelete);
-
-		}
-
 		// Hard delete path - requires explicit opt-in
-		try {
+		if (softDelete is false) {
+			try {
 
-			var options = this.RequestOptions.Options;
-			var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
+				var options = this.RequestOptions.Options;
+				var container = await this._containerProvider.GetContainerAsync(this._serviceKey).ConfigureAwait(false);
 
-			var pk = ResolvePartitionKey(id);
-			var response = await container
-				.DeleteItemAsync<TEntity>(id, pk, options, cancellationToken)
-				.ConfigureAwait(false);
+				var pk = ResolvePartitionKey(id);
+				var response = await container
+					.DeleteItemAsync<TEntity>(id, pk, options, cancellationToken)
+					.ConfigureAwait(false);
 
-			this._logger.LogItemDeleted<TEntity>(id);
+				this._logger.LogItemDeleted<TEntity>(id);
 
-			return response.Resource;
+				return response.Resource;
 
-		} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) {
-			throw new NotFoundException(id);
-		} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed) {
-			throw new ConcurrencyException(id);
+			} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) {
+				throw new NotFoundException(id);
+			} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.PreconditionFailed) {
+				throw new ConcurrencyException(id);
+			}
 		}
+
+		// Soft delete path - requires the entity to implement IDeletableEntity
+		if (!typeof(IDeletableEntity).IsAssignableFrom(typeof(TEntity))) {
+			throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not support soft delete");
+		}
+
+		// First read the item
+		var value =
+			await this.GetAsync(id, false, cancellationToken)
+			?? throw new NotFoundException(id);
+
+		return await this.DeleteAsync(value, cancellationToken, softDelete);
 
 	}
 
