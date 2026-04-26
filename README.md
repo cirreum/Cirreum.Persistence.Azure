@@ -15,6 +15,8 @@
 ## Key Features
 
 - **Repository Pattern Implementation** - Clean abstraction over Azure Cosmos DB operations
+- **Object-Level ACL** - `IProtectedRepository<T>` enforces per-entity permissions through `IResourceAccessEvaluator`, with hierarchy walks and per-request L1 caching
+- **Soft Delete with Audit** - Opt-in soft-delete is the default destructive path; tracks `DeletedBy`, `DeletedOn`, and time zone via `IDeletableEntity`
 - **Multi-Instance Support** - Keyed service registration for multiple database connections
 - **Declarative Indexing Policies** - Attribute-driven indexing configuration on entity classes
 - **In-Memory Testing** - Built-in in-memory repository for unit testing
@@ -33,20 +35,12 @@ builder.AddCosmosDb("default", settings => {
     settings.OptimizeBandwidth = true;
 });
 
-// Inject and use repository
-public class UserService
-{
-    private readonly IRepository<User> _userRepository;
+// Inject and use repository (primary constructor)
+public sealed class UserService(
+    [FromKeyedServices("default")] IRepository<User> repository) {
 
-    public UserService([FromKeyedServices("default")] IRepository<User> userRepository)
-    {
-        _userRepository = userRepository;
-    }
-
-    public async Task<User?> GetUserAsync(string id, CancellationToken ct)
-    {
-        return await _userRepository.GetAsync(id, cancellationToken: ct);
-    }
+    public Task<User?> GetUserAsync(string id, CancellationToken ct) =>
+        repository.GetAsync(id, cancellationToken: ct);
 }
 ```
 
@@ -162,6 +156,90 @@ The resolver automatically derives JSON paths from `[JsonPropertyName]` attribut
 | `[ExcludedPath]` | Class | Excludes a path from indexing (supports wildcards) |
 | `[CompositeIndex]` | Property | Groups properties into composite indexes by name, ordered by position |
 | `[SpatialIndex]` | Property | Adds spatial indexing (`Point`, `LineString`, `Polygon`, `MultiPolygon`) |
+
+## Soft Delete
+
+Entities that implement `IDeletableEntity` participate in soft-delete semantics. The `softDelete` parameter on `DeleteAsync` defaults to `true` — destructive hard-delete requires explicit opt-in:
+
+```csharp
+// Soft delete (default) — sets DeletedBy / DeletedOn / IsDeleted, preserves the row
+await repository.DeleteAsync(entity, ct);
+
+// Hard delete — removes the row from Cosmos
+await repository.DeleteAsync(entity, ct, softDelete: false);
+
+// Restore a soft-deleted entity
+var (restored, entity) = await repository.RestoreAsync(id, ct);
+```
+
+Soft-deleted entities are filtered out by default on reads. Pass `includeDeleted: true` to include them. Hard-delete and soft-delete on entities that don't implement `IDeletableEntity` will throw — the safer default forces a deliberate choice.
+
+## Protected Resources (Object-Level ACL)
+
+For entities that carry embedded ACLs, inject `IProtectedRepository<T>` instead of `IRepository<T>`. The protected repository composes `IResourceAccessEvaluator` and runs the ACL check before every operation, walking the resource hierarchy and applying root defaults as needed.
+
+### Defining a protected entity
+
+```csharp
+[Container("documents")]
+[PartitionKeyPath("/folderId")]
+public sealed record DocumentEntity : Entity, IProtectedResource, IDeletableEntity {
+
+    public required string FolderId { get; init; }
+
+    // IProtectedResource — embedded ACL
+    public string ResourceId => Id;
+    public string? ParentResourceId => FolderId;
+    public IReadOnlyList<string> AncestorResourceIds { get; init; } = [];
+    public IReadOnlyList<AccessEntry> AccessList { get; init; } = [];
+    public bool InheritPermissions { get; init; } = true;
+
+    // IDeletableEntity — soft-delete fields
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset? DeletedOn { get; set; }
+    public string? DeletedBy { get; set; }
+    public string? DeletedInTimeZone { get; set; }
+}
+```
+
+### Consuming from a handler
+
+`IProtectedRepository<T>` does **not** extend `IRepository<T>` — by design. The type system enforces that callers explicitly opt into ACL-bypass via `UseInnerRepositoryAsync` (audited; logged at Info level with caller file/line) rather than accidentally calling an unprotected method.
+
+```csharp
+public sealed class GetDocumentHandler(
+    IProtectedRepository<DocumentEntity> repository
+) : IOperationHandler<GetDocument, Document> {
+
+    public async Task<Result<Document>> HandleAsync(GetDocument request, CancellationToken ct) {
+        try {
+            var entity = await repository.GetAsync(
+                request.DocumentId,
+                FolderPermissions.Document.Browse,
+                ct);
+            return entity.Map();
+        } catch (NotFoundException) {
+            return Result.NotFound<Document>(request.DocumentId);
+        } catch (ForbiddenAccessException ex) {
+            return ex; // implicit Exception → Result<Document>.Failure
+        }
+    }
+}
+```
+
+For HTTP-only handlers, the `try/catch` blocks can be omitted entirely — the Cirreum default endpoint filter converts the propagating exceptions into Result-shaped HTTP responses. Add the catches when the handler may be composed into non-HTTP flows (sagas, queue consumers, scheduled jobs).
+
+### Inner-repository escape hatch
+
+When a handler genuinely needs the unprotected repository surface (system maintenance, projections, cross-cutting reads), use the audited escape hatch:
+
+```csharp
+await repository.UseInnerRepositoryAsync(async (inner, token) => {
+    await inner.UpdatePartialAsync(documentId, ops => ops.Set(d => d.Indexed, true), cancellationToken: token);
+}, ct);
+```
+
+Every call is logged at Info level with the entity type, caller member, file, and line — making ACL-bypass entry points trivially auditable.
 
 ## In-Memory Testing
 
