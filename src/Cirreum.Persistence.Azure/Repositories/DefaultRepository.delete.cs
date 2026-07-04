@@ -48,7 +48,7 @@ sealed partial class DefaultRepository<TEntity> {
 		}
 
 		var deletable = (IDeletableEntity)value;
-		var user = await _userAccessor.GetUser();
+		var user = await _userAccessor.GetUserState();
 		deletable.DeletedBy = user.Name;
 		deletable.DeletedOn = this._datetimeService.UtcOffset;
 		deletable.DeletedInTimeZone = this._datetimeService.LocalTimeZoneId;

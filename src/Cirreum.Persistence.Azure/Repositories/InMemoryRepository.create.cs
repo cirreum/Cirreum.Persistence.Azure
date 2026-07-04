@@ -29,7 +29,7 @@ sealed partial class InMemoryRepository<TEntity> {
 		if (value is IAuditableEntity auditable) {
 			auditable.CreatedInTimeZone = this._datetimeService.LocalTimeZoneId;
 			auditable.CreatedOn = this._datetimeService.UtcOffset;
-			var user = await this._userAccessor.GetUser();
+			var user = await this._userAccessor.GetUserState();
 			var userName = user.Name;
 			auditable.CreatedBy = userName;
 		}

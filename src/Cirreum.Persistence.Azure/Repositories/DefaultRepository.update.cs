@@ -26,7 +26,7 @@ sealed partial class DefaultRepository<TEntity> {
 		}
 
 		if (value is IAuditableEntity auditable) {
-			var user = await this._userAccessor.GetUser();
+			var user = await this._userAccessor.GetUserState();
 			// We use the CosmosDb _ts value from
 			// See the ModifyOnRaw property
 			//auditable.ModifiedOn = this._datetimeService.UtcOffset;
@@ -103,7 +103,7 @@ sealed partial class DefaultRepository<TEntity> {
 		try {
 
 			if (typeof(IAuditableEntity).IsAssignableFrom(typeof(TEntity))) {
-				var user = await this._userAccessor.GetUser();
+				var user = await this._userAccessor.GetUserState();
 				patchOperationBuilder.SetByPath(nameof(IAuditableEntity.ModifiedBy).Camelize(), user.Name);
 				patchOperationBuilder.SetByPath(nameof(IAuditableEntity.ModifiedInTimeZone).Camelize(), this._datetimeService.LocalTimeZoneId);
 			}

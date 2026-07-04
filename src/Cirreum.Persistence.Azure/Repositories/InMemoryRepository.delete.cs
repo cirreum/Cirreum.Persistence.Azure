@@ -16,7 +16,7 @@ sealed partial class InMemoryRepository<TEntity> {
 			}
 
 			if (value is IDeletableEntity deletable) {
-				var user = await this._userAccessor.GetUser();
+				var user = await this._userAccessor.GetUserState();
 				deletable.DeletedBy = user.Name;
 				deletable.DeletedOn = this._datetimeService.UtcNow;
 				deletable.DeletedInTimeZone = this._datetimeService.LocalTimeZoneId;

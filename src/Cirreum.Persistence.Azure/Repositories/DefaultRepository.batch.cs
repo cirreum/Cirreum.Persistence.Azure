@@ -25,7 +25,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var batch = container.CreateTransactionalBatch(new PartitionKey(partitionKey));
 
-		var user = await this._userAccessor.GetUser();
+		var user = await this._userAccessor.GetUserState();
 		var userName = user.Name;
 
 		foreach (var item in list) {
@@ -69,7 +69,7 @@ sealed partial class DefaultRepository<TEntity> {
 
 		var batch = container.CreateTransactionalBatch(new PartitionKey(partitionKey));
 
-		var user = await this._userAccessor.GetUser();
+		var user = await this._userAccessor.GetUserState();
 		var userName = user.Name;
 		foreach (var item in list) {
 			this.PrepareCreateItem(item, userName);
@@ -105,7 +105,7 @@ sealed partial class DefaultRepository<TEntity> {
 				throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not support soft delete");
 			}
 
-			var user = await _userAccessor.GetUser();
+			var user = await _userAccessor.GetUserState();
 			var userName = user.Name;
 
 			foreach (var item in list) {

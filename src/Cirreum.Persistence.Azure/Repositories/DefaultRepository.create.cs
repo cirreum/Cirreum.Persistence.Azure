@@ -68,7 +68,7 @@ sealed partial class DefaultRepository<TEntity> {
 		bool optimizeBandwidth,
 		CancellationToken cancellationToken = default) {
 
-		var user = await this._userAccessor.GetUser();
+		var user = await this._userAccessor.GetUserState();
 		var userName = user.Name;
 		this.PrepareCreateItem(value, userName);
 
