@@ -70,9 +70,9 @@ public sealed class AzureCosmosInstanceSettings
 	/// Gets or sets the name identifier for the cosmos database.
 	/// </summary>
 	/// <remarks>
-	/// Defaults to "corr-db", unless otherwise specified.
+	/// Defaults to "cirreum-db", unless otherwise specified.
 	/// </remarks>
-	public string DatabaseId { get; set; } = "corr-db";
+	public string DatabaseId { get; set; } = "cirreum-db";
 
 	/// <summary>
 	/// Gets or sets whether to optimize bandwidth.

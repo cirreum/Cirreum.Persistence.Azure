@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Replaced leftover legacy `corr` naming with `cirreum`:
+  - The Cosmos client's HTTP `User-Agent` product token is now `cirreum/{version}` (was `corr/{version}`).
+  - The default `AzureCosmosInstanceSettings.DatabaseId` is now `cirreum-db` (was `corr-db`).
+
+> **Upgrade note:** applications that relied on the default `DatabaseId` (i.e. never set it explicitly) will, after upgrading, target a database named `cirreum-db` instead of `corr-db`. With auto resource creation enabled (the default), an empty `cirreum-db` will be created and the existing `corr-db` data will appear missing. To keep using the existing database, set `"DatabaseId": "corr-db"` explicitly in configuration.
+
 ## [2.1.0] - 2026-07-11
 
 ### Added

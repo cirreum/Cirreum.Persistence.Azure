@@ -100,7 +100,7 @@ internal static class CosmosRegistrationExtensions {
 
 		client.DefaultRequestHeaders
 			  .UserAgent
-			  .ParseAdd($"corr/{version}");
+			  .ParseAdd($"cirreum/{version}");
 
 		return client;
 
