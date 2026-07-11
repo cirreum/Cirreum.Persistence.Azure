@@ -25,9 +25,36 @@ public sealed class AzureCosmosInstanceSettings
 	internal Uri? AccountEndpoint { get; set; }
 
 	/// <summary>
-	/// The CosmosClient Options
+	/// Optional client options — a curated, configuration-bindable subset of
+	/// <see cref="CosmosClientOptions"/> (e.g. <c>"ClientOptions": { "ConnectionMode": "Gateway" }</c>).
 	/// </summary>
-	internal CosmosClientOptions? ClientOptions { get; set; }
+	/// <remarks>
+	/// Applied onto the underlying <see cref="CosmosClientOptions"/> before the
+	/// <c>configureClientOptions</c> callback runs, so code-level configuration always
+	/// takes precedence over configuration-bound values.
+	/// </remarks>
+	public AzureCosmosClientSettings? ClientOptions { get; set; }
+
+	/// <summary>
+	/// The underlying SDK client options.
+	/// </summary>
+	internal CosmosClientOptions? SdkClientOptions { get; set; }
+
+	private bool _clientSettingsApplied;
+
+	/// <summary>
+	/// Ensures <see cref="SdkClientOptions"/> exists and that <see cref="ClientOptions"/>
+	/// has been applied onto it exactly once (so later callers cannot overwrite values
+	/// set by the <c>configureClientOptions</c> callback).
+	/// </summary>
+	internal CosmosClientOptions EnsureSdkClientOptions() {
+		this.SdkClientOptions ??= new CosmosClientOptions();
+		if (!this._clientSettingsApplied) {
+			this.ClientOptions?.ApplyTo(this.SdkClientOptions);
+			this._clientSettingsApplied = true;
+		}
+		return this.SdkClientOptions;
+	}
 
 	/// <summary>
 	/// Gets or sets the <see cref="ServiceLifetime"/> for <see cref="IRepository{TEntity}"/> instances.
