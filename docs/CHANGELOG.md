@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Note: a previously-inert `"ClientOptions"` block in an existing consumer's configuration will start taking effect for the curated options after upgrading (most significantly `ConnectionMode`). Review existing `"ClientOptions"` configuration before upgrading.
 
+## [2.0.10] - 2026-07-07
+
+### Updated
+
+- Updated NuGet packages.
+
+## [2.0.9] - 2026-07-05
+
+### Updated
+
+- Updated NuGet packages.
+
 ## [2.0.8] - 2026-07-04
 
 ### Updated
