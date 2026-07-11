@@ -30,9 +30,9 @@ public static class HostingExtensions {
 		builder.Services.AddHttpClient();
 		builder.Services.AddMemoryCache();
 
-		// Configure client options
-		settings.ClientOptions ??= new CosmosClientOptions();
-		configureClientOptions?.Invoke(settings.ClientOptions);
+		// Configure client options — config-bound ClientOptions apply first, the callback overrides
+		var clientOptions = settings.EnsureSdkClientOptions();
+		configureClientOptions?.Invoke(clientOptions);
 
 		// Configure health options
 		settings.HealthOptions ??= new AzureCosmosHealthCheckOptions();

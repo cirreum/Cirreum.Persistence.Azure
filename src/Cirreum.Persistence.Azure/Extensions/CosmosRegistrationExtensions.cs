@@ -71,20 +71,20 @@ internal static class CosmosRegistrationExtensions {
 		};
 		var cosmosSystemTextJsonSerializer = new CosmosSystemTextJsonSerializer(jsonSerializerOptions);
 
-		settings.ClientOptions ??= new();
-		settings.ClientOptions.ApplicationName = settings.ApplicationName ?? "Cirreum";
-		settings.ClientOptions.Serializer = cosmosSystemTextJsonSerializer;
-		settings.ClientOptions.HttpClientFactory = () => serviceProvider.CreateCosmosHttpClient();
-		settings.ClientOptions.EnableContentResponseOnWrite = false;
-		settings.ClientOptions.AllowBulkExecution = settings.AllowBulkExecution;
+		var clientOptions = settings.EnsureSdkClientOptions();
+		clientOptions.ApplicationName = settings.ApplicationName ?? "Cirreum";
+		clientOptions.Serializer = cosmosSystemTextJsonSerializer;
+		clientOptions.HttpClientFactory = () => serviceProvider.CreateCosmosHttpClient();
+		clientOptions.EnableContentResponseOnWrite = false;
+		clientOptions.AllowBulkExecution = settings.AllowBulkExecution;
 
 		// Needs to be enabled for either logging or tracing to work.
-		settings.ClientOptions.CosmosClientTelemetryOptions.DisableDistributedTracing = false;
+		clientOptions.CosmosClientTelemetryOptions.DisableDistributedTracing = false;
 
 		return new DefaultCosmosClientProvider(
 			settings.AccountEndpoint is not null ?
-			new CosmosClient(settings.AccountEndpoint.OriginalString, new DefaultAzureCredential(), settings.ClientOptions) :
-			new CosmosClient(settings.ConnectionString, settings.ClientOptions));
+			new CosmosClient(settings.AccountEndpoint.OriginalString, new DefaultAzureCredential(), clientOptions) :
+			new CosmosClient(settings.ConnectionString, clientOptions));
 	}
 	private static HttpClient CreateCosmosHttpClient(
 		this IServiceProvider serviceProvider) {
