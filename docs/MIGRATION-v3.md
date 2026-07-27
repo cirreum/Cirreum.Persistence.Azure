@@ -62,6 +62,21 @@ attached, so the payload is identical:
 
 **Everything else** — no action.
 
+## Also in this release — additive, no action
+
+**Cosmos gateway traffic uses a named HTTP client.** `AzureCosmosDefaults.HttpClientName`
+(`"Cirreum.Cosmos"`) replaces the factory's unnamed client, giving Cosmos its own handler seam:
+
+```csharp
+builder.Services.AddHttpClient(AzureCosmosDefaults.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { /* ... */ });
+```
+
+The framework names the client without configuring it, so stock defaults apply unless you opt in and
+nothing changes for existing deployments. If you were tuning Cosmos via `ConfigureHttpClientDefaults`,
+that still works — but you can now scope it to Cosmos alone instead of every default client in the
+application.
+
 ## What didn't change
 
 - Every public type, method and signature

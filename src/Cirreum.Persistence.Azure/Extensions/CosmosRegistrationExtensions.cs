@@ -89,9 +89,12 @@ internal static class CosmosRegistrationExtensions {
 	private static HttpClient CreateCosmosHttpClient(
 		this IServiceProvider serviceProvider) {
 
+		// A named client, so an application can shape the handler under Cosmos traffic on its own.
+		// The unnamed client left ConfigureHttpClientDefaults as the only lever, and that reaches
+		// every default client in the application rather than just this one.
 		var client = serviceProvider
 			.GetRequiredService<IHttpClientFactory>()
-			.CreateClient();
+			.CreateClient(AzureCosmosDefaults.HttpClientName);
 
 		var version =
 			Assembly.GetExecutingAssembly()

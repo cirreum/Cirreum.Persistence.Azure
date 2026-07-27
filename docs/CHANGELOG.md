@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AzureCosmosDefaults.HttpClientName`** — Cosmos gateway traffic now goes through a *named*
+  `IHttpClientFactory` client (`"Cirreum.Cosmos"`) instead of the factory's unnamed one. Previously
+  the only way to shape the handler underneath Cosmos was `ConfigureHttpClientDefaults`, which
+  reaches every default client in the application rather than just this one:
+
+  ```csharp
+  builder.Services.AddHttpClient(AzureCosmosDefaults.HttpClientName)
+      .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler {
+          PooledConnectionLifetime = TimeSpan.FromSeconds(30),
+          ConnectTimeout = TimeSpan.FromSeconds(2)
+      });
+  ```
+
+  The framework names the client but deliberately does **not** configure it. The right handler values
+  are environment-specific — aggressive recycling suits a local emulator behind a proxy and causes
+  needless churn against real Azure — and `ConfigurePrimaryHttpMessageHandler` is last-write-wins, so
+  a framework-supplied handler would fight the application's own. Stock defaults stay in place unless
+  the application says otherwise, so nothing changes for anyone who doesn't opt in.
+
 ### Changed
 
 - **A point read that finds nothing now logs at `Debug` instead of `Error`.** Event `20301` fired at
