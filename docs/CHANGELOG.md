@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A blank `ApplicationName` no longer reaches the Cosmos SDK.** The user-agent name was built with
+  `settings.ApplicationName ?? "Cirreum"`, which substitutes the default for `null` but not for an
+  empty or whitespace string — and the SDK rejects `""` as an HTTP User-Agent value, so an instance
+  configured with a blank name failed at client construction rather than falling back. The check is
+  now `IsNullOrWhiteSpace`.
+
+  The framework's own identity is also folded in: `ApplicationName` becomes
+  `"{yours} cirreum/{version}"`, or just `cirreum/{version}` when none is configured. It previously
+  went on the `HttpClient`'s default request headers, where the SDK — which sets `User-Agent` per
+  request from its own container plus `ApplicationName` — would likely have overwritten it. One
+  mechanism now, and it is the SDK's documented one.
 - **Container resolution is now cached per service key instead of repeated on every operation.**
   Every repository call — read, write, delete, count, query — began by resolving its container, and
   nothing cached the result. What that cost depends on `IsAutoResourceCreationEnabled`:

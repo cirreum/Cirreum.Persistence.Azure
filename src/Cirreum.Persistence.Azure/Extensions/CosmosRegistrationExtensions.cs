@@ -71,8 +71,17 @@ internal static class CosmosRegistrationExtensions {
 		};
 		var cosmosSystemTextJsonSerializer = new CosmosSystemTextJsonSerializer(jsonSerializerOptions);
 
+		var version = typeof(CosmosRegistrationExtensions)
+			.Assembly
+			.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+			.InformationalVersion ?? "1.0";
+		var cirreumApplicationName = $"cirreum/{version}";
+
 		var clientOptions = settings.EnsureSdkClientOptions();
-		clientOptions.ApplicationName = settings.ApplicationName ?? "Cirreum";
+		clientOptions.ApplicationName =
+			string.IsNullOrWhiteSpace(settings.ApplicationName)
+				? cirreumApplicationName
+				: $"{settings.ApplicationName} {cirreumApplicationName}";
 		clientOptions.Serializer = cosmosSystemTextJsonSerializer;
 		clientOptions.HttpClientFactory = () => serviceProvider.CreateCosmosHttpClient();
 		clientOptions.EnableContentResponseOnWrite = false;
@@ -86,8 +95,8 @@ internal static class CosmosRegistrationExtensions {
 			new CosmosClient(settings.AccountEndpoint.OriginalString, new DefaultAzureCredential(), clientOptions) :
 			new CosmosClient(settings.ConnectionString, clientOptions));
 	}
-	private static HttpClient CreateCosmosHttpClient(
-		this IServiceProvider serviceProvider) {
+
+	private static HttpClient CreateCosmosHttpClient(this IServiceProvider serviceProvider) {
 
 		// A named client, so an application can shape the handler under Cosmos traffic on its own.
 		// The unnamed client left ConfigureHttpClientDefaults as the only lever, and that reaches
@@ -95,15 +104,6 @@ internal static class CosmosRegistrationExtensions {
 		var client = serviceProvider
 			.GetRequiredService<IHttpClientFactory>()
 			.CreateClient(AzureCosmosDefaults.HttpClientName);
-
-		var version =
-			Assembly.GetExecutingAssembly()
-					.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-					.InformationalVersion ?? "1.0";
-
-		client.DefaultRequestHeaders
-			  .UserAgent
-			  .ParseAdd($"cirreum/{version}");
 
 		return client;
 
