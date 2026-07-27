@@ -11,97 +11,145 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
 /// <summary>
-/// Get or Create Cosmos Containers
+/// Resolves the Cosmos container associated with an entity type and service key.
 /// </summary>
 /// <remarks>
-/// Resolution is cached per service key. It is not a per-operation concern: every repository call
-/// begins by asking for its container, and resolving it means two Cosmos metadata round trips —
-/// <c>CreateDatabaseIfNotExistsAsync</c> and <c>CreateContainerIfNotExistsAsync</c>, each of which
-/// reads before it creates. Uncached, that doubled the network cost of every read and write for the
-/// life of the process, and while the database and container did not yet exist each of those reads
-/// returned 404 — so seeding a fresh service produced a stream of expected not-founds in logs and
-/// telemetry, one pair per item written.
+/// <para>
+/// Container resolution is cached for the lifetime of the factory, once per service key.
+/// The factory itself is registered as a singleton for each closed entity type.
+/// </para>
+/// <para>
+/// When automatic resource creation is enabled, caching prevents repeated Cosmos metadata
+/// operations through <c>CreateDatabaseIfNotExistsAsync</c> and
+/// <c>CreateContainerIfNotExistsAsync</c>. When automatic creation is disabled, caching
+/// retains the equivalent lightweight SDK container handle and provides consistent behavior
+/// across both configuration modes.
+/// </para>
+/// <para>
+/// Failed initialization attempts are not retained. A later call may retry resolution after
+/// a transient failure.
+/// </para>
 /// </remarks>
 internal sealed class ContainerFactory<TEntity>(
 	IServiceProvider serviceProvider,
-	ILogger<ContainerFactory<TEntity>> logger)
-	: IContainerFactory<TEntity>
+	ILogger<ContainerFactory<TEntity>> logger
+) : IContainerFactory<TEntity>
 	where TEntity : IEntity {
 
-	private static readonly ContainerProperties _containerProperties;
+	private static readonly ContainerProperties ContainerProperties =
+		GetContainerProperties();
 
-	// Lazy rather than the task directly: ConcurrentDictionary may invoke a GetOrAdd factory more
-	// than once under contention, and each invocation here is a pair of round trips and a possible
-	// resource creation. ExecutionAndPublication collapses a burst of first callers onto one.
 	private readonly ConcurrentDictionary<string, Lazy<Task<Container>>> _containers =
 		new(StringComparer.Ordinal);
 
-	// Static constructor to set up the configuration once per type
-	static ContainerFactory() {
-		_containerProperties = GetContainerProperties();
+	public Task<Container> GetContainerAsync(string key) {
+
+		ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+		var lazy = this._containers.GetOrAdd(
+			key,
+			k => new Lazy<Task<Container>>(
+				() => this.ResolveContainerAsync(k),
+				LazyThreadSafetyMode.ExecutionAndPublication));
+
+		// Every repository operation begins here, and after the first resolution the task is already
+		// complete — so return it directly rather than routing through an async method, which would
+		// allocate a state machine and a second task on every read and write. A faulted task is not
+		// "completed successfully", so failures still take the path below and evict.
+		var resolution = lazy.Value;
+
+		return resolution.IsCompletedSuccessfully
+			? resolution
+			: this.GetContainerCoreAsync(key, lazy);
+
 	}
+
+	private async Task<Container> GetContainerCoreAsync(
+		string key,
+		Lazy<Task<Container>> lazy) {
+
+		try {
+			return await lazy.Value.ConfigureAwait(false);
+		} catch {
+
+			// Do not retain a faulted initialization task. Remove the entry only
+			// if it still contains the same Lazy instance that failed.
+			this._containers.TryRemove(
+				new KeyValuePair<string, Lazy<Task<Container>>>(key, lazy));
+
+			throw;
+
+		}
+
+	}
+
+	private async Task<Container> ResolveContainerAsync(string key) {
+
+		var settings = InstanceSettingsRegistry.GetSettings(key);
+
+		try {
+
+			var provider =
+				serviceProvider.GetRequiredKeyedService<ICosmosClientProvider>(key);
+
+			var database =
+				settings.IsAutoResourceCreationEnabled
+					? await provider.UseClientAsync(
+						client => client.CreateDatabaseIfNotExistsAsync(
+							settings.DatabaseId))
+						.ConfigureAwait(false)
+					: provider.UseClient(
+						client => client.GetDatabase(settings.DatabaseId));
+
+			return settings.IsAutoResourceCreationEnabled
+				? await database
+					.CreateContainerIfNotExistsAsync(ContainerProperties)
+					.ConfigureAwait(false)
+				: database.GetContainer(ContainerProperties.Id);
+
+		} catch (Exception ex) {
+
+			logger.LogError(
+				ex,
+				"Failed to resolve Cosmos container {ContainerId} in database {DatabaseId} " +
+				"for entity {EntityType} using service key {ServiceKey}. " +
+				"Automatic resource creation enabled: {AutoCreationEnabled}.",
+				ContainerProperties.Id,
+				settings.DatabaseId,
+				typeof(TEntity).FullName,
+				key,
+				settings.IsAutoResourceCreationEnabled);
+
+			throw;
+
+		}
+
+	}
+
 	private static ContainerProperties GetContainerProperties() {
 
 		var itemType = typeof(TEntity);
 		itemType.IsItem();
 
-		var containerName = ContainerNameResolver.GetContainerName(itemType);
-		var partitionKeyPath = PartitionKeyPathResolver.GetPartitionKeyPath(itemType);
-		var uniqueKeyPolicy = UniqueKeyPolicyResolver.GetUniqueKeyPolicy(itemType);
-		var indexingPolicy = IndexingPolicyResolver.GetIndexingPolicy(itemType);
+		var containerName =
+			ContainerNameResolver.GetContainerName(itemType);
 
-		return new ContainerProperties() {
+		var partitionKeyPath =
+			PartitionKeyPathResolver.GetPartitionKeyPath(itemType);
+
+		var uniqueKeyPolicy =
+			UniqueKeyPolicyResolver.GetUniqueKeyPolicy(itemType);
+
+		var indexingPolicy =
+			IndexingPolicyResolver.GetIndexingPolicy(itemType);
+
+		return new ContainerProperties {
 			Id = containerName,
 			PartitionKeyPath = partitionKeyPath,
 			UniqueKeyPolicy = uniqueKeyPolicy ?? new(),
 			IndexingPolicy = indexingPolicy ?? new(),
 			PartitionKeyDefinitionVersion = PartitionKeyDefinitionVersion.V2
 		};
-
-	}
-
-	public Task<Container> GetContainerAsync(string key) =>
-		this._containers.GetOrAdd(
-			key,
-			k => new Lazy<Task<Container>>(
-				() => this.ResolveContainerAsync(k),
-				LazyThreadSafetyMode.ExecutionAndPublication)).Value;
-
-	private async Task<Container> ResolveContainerAsync(string key) {
-
-		try {
-
-			var settings = InstanceSettingsRegistry.GetSettings(key);
-			var provider = serviceProvider.GetRequiredKeyedService<ICosmosClientProvider>(key);
-			var database =
-				settings.IsAutoResourceCreationEnabled
-					? await provider.UseClientAsync(
-						client => client
-							.CreateDatabaseIfNotExistsAsync(settings.DatabaseId))
-							.ConfigureAwait(false)
-					: await provider.UseClientAsync(
-						client => Task
-							.FromResult(client.GetDatabase(settings.DatabaseId)))
-							.ConfigureAwait(false);
-
-			var container =
-				settings.IsAutoResourceCreationEnabled
-					? await database
-						.CreateContainerIfNotExistsAsync(_containerProperties)
-						.ConfigureAwait(false)
-					: await Task
-						.FromResult(database.GetContainer(_containerProperties.Id))
-						.ConfigureAwait(false);
-
-			return container;
-
-		} catch (Exception ex) {
-			// Evict before rethrowing: a cached faulted task would make one transient failure during
-			// startup permanent for the process, turning a retryable blip into an outage.
-			this._containers.TryRemove(key, out _);
-			logger.LogError(ex, "Failed to get container with error {GetContainerError}", ex.Message);
-			throw;
-		}
 
 	}
 

@@ -8,5 +8,6 @@ using Microsoft.Azure.Cosmos;
 /// which is shared.
 /// </summary>
 interface ICosmosClientProvider {
+	T UseClient<T>(Func<CosmosClient, T> consume);
 	Task<T> UseClientAsync<T>(Func<CosmosClient, Task<T>> consume);
 }

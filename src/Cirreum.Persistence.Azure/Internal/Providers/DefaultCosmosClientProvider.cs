@@ -7,8 +7,15 @@ using Microsoft.Azure.Cosmos;
 /// </summary>
 sealed class DefaultCosmosClientProvider(CosmosClient client) : ICosmosClientProvider, IDisposable {
 
-	public Task<T> UseClientAsync<T>(Func<CosmosClient, Task<T>> consume)
-		=> consume.Invoke(client);
+	public T UseClient<T>(Func<CosmosClient, T> consume) {
+		ArgumentNullException.ThrowIfNull(consume);
+		return consume(client);
+	}
+
+	public Task<T> UseClientAsync<T>(Func<CosmosClient, Task<T>> consume) {
+		ArgumentNullException.ThrowIfNull(consume);
+		return consume(client);
+	}
 
 	public void Dispose() {
 		client.Dispose();
