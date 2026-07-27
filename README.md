@@ -119,6 +119,37 @@ The `Name` property is used to resolve the connection string via `Configuration.
 >
 > Cost is bounded either way: container resolution is cached per service key, so the existence checks run once per key per process rather than on every repository operation.
 
+## Tuning Cosmos HTTP traffic
+
+Gateway traffic goes through a named `IHttpClientFactory` client, so you can shape the handler under Cosmos without touching every other client in the application:
+
+```csharp
+builder.Services.AddHttpClient(AzureCosmosDefaults.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler {
+        PooledConnectionLifetime = TimeSpan.FromSeconds(30),
+        PooledConnectionIdleTimeout = TimeSpan.FromSeconds(15),
+        ConnectTimeout = TimeSpan.FromSeconds(2)
+    });
+```
+
+The framework names the client but deliberately does **not** configure it. The right handler values are environment-specific — the aggressive recycling above suits a local emulator and is needless churn against real Azure — and `ConfigurePrimaryHttpMessageHandler` is last-write-wins, so a framework-supplied handler would fight yours. Leave it alone and stock defaults apply.
+
+> **Do not set `HttpClient.Timeout` on this client.** The SDK owns the request budget through `RequestTimeout` and enforces it with cancellation tokens. An `HttpClient.Timeout` shorter than that budget preempts the SDK's retry logic, so a retryable transient surfaces as `CosmosOperationCanceledException` instead of a 408 or 503 the SDK can classify. Tune `RequestTimeout` in configuration instead.
+
+### Emulator dev-loop stalls
+
+If you run the Linux Cosmos emulator behind Docker Desktop and see requests stall for seconds after an idle gap, this is why: the port proxy silently drops idle pooled connections without sending a FIN or RST, so the client never learns they are dead. The next gateway metadata call — typically the collection-cache lookup on the first operation after the gap — rides a dead connection and blocks until `RequestTimeout` elapses and the retry fires.
+
+Usually that is just a slow first request. It turns into a hard failure when the caller is itself on a deadline: an inbound webhook whose connector timeout expires mid-request aborts the operation rather than waiting.
+
+Two settings together fix it — a short pooled-connection lifetime on the handler above, so the dead-connection window never opens, and a low `RequestTimeout` so any residual stall fails fast enough to retry inside the caller's window:
+
+```json
+"ClientOptions": { "RequestTimeout": "00:00:02" }
+```
+
+Both are development settings. Against real Azure the connection recycling buys nothing and a two-second `RequestTimeout` is too aggressive.
+
 ## Declarative Indexing Policy
 
 When `IsAutoResourceCreationEnabled` is `true`, containers are auto-created with indexing policies defined directly on your entity classes via attributes from `Cirreum.Persistence.NoSql`:
