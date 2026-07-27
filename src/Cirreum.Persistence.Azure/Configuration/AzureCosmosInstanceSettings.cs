@@ -97,11 +97,25 @@ public sealed class AzureCosmosInstanceSettings
 	public bool AllowBulkExecution { get; set; }
 
 	/// <summary>
-	/// Indicate whether or not to try and creates databases and containers if they do not exist.
+	/// Whether to create databases and containers that do not exist. Defaults to
+	/// <see langword="true"/>.
 	/// </summary>
 	/// <remarks>
-	/// This feature is very powerful for local development. However, in scenarios where
-	/// infrastructure as code is used this may not be desired.
+	/// <para>
+	/// Intended for local development and for seeding a new environment, where having the schema
+	/// appear on first run is the point. <strong>Turn it off in production</strong>, where resources
+	/// are normally provisioned as infrastructure as code: leaving it on means the application will
+	/// create anything it finds missing, with throughput and indexing chosen from entity attributes
+	/// rather than from the deployment that owns those decisions.
+	/// </para>
+	/// <para>
+	/// The default is <see langword="true"/> so a first run works with no configuration. That is a
+	/// convenience for getting started, not a recommendation for how to run.
+	/// </para>
+	/// <para>
+	/// Cost is bounded either way: resolution is cached per service key, so the existence checks
+	/// happen once per key per process rather than on every repository operation.
+	/// </para>
 	/// </remarks>
 	public bool IsAutoResourceCreationEnabled { get; set; } = true;
 

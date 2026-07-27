@@ -107,6 +107,18 @@ public class AnalyticsService([FromKeyedServices("analytics")] IRepository<Event
 
 The `Name` property is used to resolve the connection string via `Configuration.GetConnectionString(name)`. For production, store connection strings in Azure Key Vault using the naming convention `ConnectionStrings--{Name}` (e.g., `ConnectionStrings--MyCosmosDb`).
 
+> **`IsAutoResourceCreationEnabled` — turn it off in production.**
+>
+> It defaults to `true` so a first run works with no configuration, and the samples above show it on because they are getting-started samples. That is a convenience, not a recommendation for how to run.
+>
+> It exists for local development and for seeding a new environment, where having the schema appear on first run is the point. In production, resources are normally provisioned as infrastructure as code — leaving this on means the application creates anything it finds missing, with throughput and indexing taken from entity attributes rather than from the deployment that owns those decisions.
+>
+> ```json
+> "IsAutoResourceCreationEnabled": false
+> ```
+>
+> Cost is bounded either way: container resolution is cached per service key, so the existence checks run once per key per process rather than on every repository operation.
+
 ## Declarative Indexing Policy
 
 When `IsAutoResourceCreationEnabled` is `true`, containers are auto-created with indexing policies defined directly on your entity classes via attributes from `Cirreum.Persistence.NoSql`:
