@@ -9,6 +9,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Net;
 
 /// <summary>
 /// Resolves the Cosmos container associated with an entity type and service key.
@@ -92,32 +93,38 @@ internal sealed class ContainerFactory<TEntity>(
 			var provider =
 				serviceProvider.GetRequiredKeyedService<ICosmosClientProvider>(key);
 
-			var database =
-				settings.IsAutoResourceCreationEnabled
-					? await provider.UseClientAsync(
-						client => client.CreateDatabaseIfNotExistsAsync(
-							settings.DatabaseId))
-						.ConfigureAwait(false)
-					: provider.UseClient(
-						client => client.GetDatabase(settings.DatabaseId));
+			if (!settings.IsAutoResourceCreationEnabled) {
+				return provider
+					.UseClient(client => client.GetDatabase(settings.DatabaseId))
+					.GetContainer(ContainerProperties.Id);
+			}
 
-			var container = settings.IsAutoResourceCreationEnabled
-				? await database
-					.CreateContainerIfNotExistsAsync(ContainerProperties)
-					.ConfigureAwait(false)
-				: database.GetContainer(ContainerProperties.Id);
+			// Typed rather than var: the call returns DatabaseResponse, and only the implicit
+			// conversion to Database exposes CreateContainerIfNotExistsAsync.
+			Database database = await provider
+				.UseClientAsync(client => client.CreateDatabaseIfNotExistsAsync(settings.DatabaseId))
+				.ConfigureAwait(false);
 
-			if (settings.IsAutoResourceCreationEnabled && logger.IsEnabled(LogLevel.Information)) {
+			var response = await database
+				.CreateContainerIfNotExistsAsync(ContainerProperties)
+				.ConfigureAwait(false);
+
+			// The response distinguishes 201 Created from 200 OK, which is the question a
+			// bootstrap run is actually asking — "ensured it exists" answers it for nothing.
+			// Reading it here is the only chance: the implicit conversion to Container below
+			// discards the status.
+			if (logger.IsEnabled(LogLevel.Information)) {
 				logger.LogInformation(
-					"Ensured Cosmos container {ContainerId} exists in database {DatabaseId} " +
+					"Cosmos container {ContainerId} {Outcome} in database {DatabaseId} " +
 					"for entity {EntityType} using service key {ServiceKey}.",
 					ContainerProperties.Id,
+					response.StatusCode == HttpStatusCode.Created ? "created" : "already existed",
 					settings.DatabaseId,
 					entityName,
 					key);
 			}
 
-			return container;
+			return response;
 
 		} catch (Exception ex) {
 
