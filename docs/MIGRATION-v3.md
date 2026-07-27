@@ -5,13 +5,41 @@
 
 ## Why v3
 
-One change, and it is not a code change: **a point read that finds nothing now logs at `Debug`
-instead of `Error`.**
+No API changed and nothing needs recompiling. Two observable behaviours changed, and both are the
+kind that should be announced rather than discovered:
 
-No API changed. No behaviour changed. Nothing needs recompiling. The major exists because observable
-log severity is part of a package's operational contract — deployments build alerting rules and
-log-volume budgets around it, and quietly changing what shows up at `Error` is exactly the kind of
-thing that should be announced rather than discovered.
+1. **Container resolution is cached** instead of repeated on every repository operation.
+2. **A point read that finds nothing logs at `Debug`** instead of `Error`.
+
+## Container resolution is cached per service key
+
+Every repository call — read, write, delete, count, query — began by resolving its container, and
+resolving meant two Cosmos metadata round trips: `CreateDatabaseIfNotExistsAsync` and
+`CreateContainerIfNotExistsAsync`, each of which reads before it creates. Nothing cached the result,
+so every operation paid both, for the life of the process.
+
+Two consequences, and the second is the one people noticed:
+
+- **Cost.** Two extra round trips on every operation, forever, even once everything exists.
+- **Noise.** While the database and container did not yet exist, each of those reads returned 404 —
+  so seeding a fresh service produced a stream of expected not-founds in logs, and in telemetry as
+  failed dependency calls, roughly two per item written.
+
+Resolution now happens once per service key and is single-flighted, so a burst of concurrent first
+callers produces one resolution rather than one each. Failures are not cached — a transient error
+during startup would otherwise be permanent for the process.
+
+**What to check:** if you have alerting or dashboards keyed on Cosmos metadata call volume, expect
+it to drop sharply. That is the fix working.
+
+**The one behavioural change to be aware of:** auto-creation runs once per key per process rather
+than on every operation, so a database or container deleted underneath a running process is no
+longer silently recreated by the next call — operations fail until restart. This only applies when
+`IsAutoResourceCreationEnabled` is on, which is a development convenience rather than a production
+posture. If you were relying on continuous self-healing, that reliance was costing two round trips
+per operation to provide.
+
+## A point read that finds nothing logs at Debug
 
 ## What changed
 

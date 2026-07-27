@@ -28,6 +28,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a framework-supplied handler would fight the application's own. Stock defaults stay in place unless
   the application says otherwise, so nothing changes for anyone who doesn't opt in.
 
+### Fixed
+
+- **Container resolution is now cached per service key instead of repeated on every operation.**
+  Every repository call — read, write, delete, count, query — began by resolving its container, and
+  resolving meant two Cosmos metadata round trips: `CreateDatabaseIfNotExistsAsync` and
+  `CreateContainerIfNotExistsAsync`, each of which reads before it creates. Nothing cached the
+  result, so every operation paid both for the life of the process.
+
+  While the database and container did not yet exist, each of those reads returned **404** — so
+  seeding a fresh service emitted a stream of expected not-founds through logs and, with distributed
+  tracing enabled, through telemetry as failed dependency calls. That is the actual source of the
+  not-found noise during seeding; the severity change below is a separate and smaller improvement.
+
+  Resolution is now single-flighted per key, so a burst of concurrent first callers produces one
+  resolution rather than one each. A failure is not cached — a transient error during startup would
+  otherwise be permanent for the process.
+
+  **Behavioural note:** auto-creation now runs once per key per process rather than on every
+  operation. A database or container deleted underneath a running process is no longer silently
+  recreated by the next call; operations against it fail until the process restarts. This only
+  affects `IsAutoResourceCreationEnabled`, which is a development convenience rather than a
+  production posture.
+
 ### Changed
 
 - **A point read that finds nothing now logs at `Debug` instead of `Error`.** Event `20301` fired at
