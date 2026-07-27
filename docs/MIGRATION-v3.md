@@ -13,10 +13,14 @@ kind that should be announced rather than discovered:
 
 ## Container resolution is cached per service key
 
-Every repository call — read, write, delete, count, query — began by resolving its container, and
-resolving meant two Cosmos metadata round trips: `CreateDatabaseIfNotExistsAsync` and
-`CreateContainerIfNotExistsAsync`, each of which reads before it creates. Nothing cached the result,
-so every operation paid both, for the life of the process.
+Every repository call — read, write, delete, count, query — began by resolving its container. With
+`IsAutoResourceCreationEnabled` on, resolving meant two Cosmos metadata round trips:
+`CreateDatabaseIfNotExistsAsync` and `CreateContainerIfNotExistsAsync`, each of which reads before it
+creates. Nothing cached the result, so every operation paid both, for the life of the process.
+
+**That flag defaults to `true`**, so this applied to any deployment that had not explicitly turned it
+off — not only local development. With it off, `GetDatabase`/`GetContainer` are local constructions
+that never touch the network, and this section does not apply to you.
 
 Two consequences, and the second is the one people noticed:
 
