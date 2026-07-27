@@ -31,12 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Container resolution is now cached per service key instead of repeated on every operation.**
-  Every repository call — read, write, delete, count, query — began by resolving its container. With
-  `IsAutoResourceCreationEnabled` on, which is **the default**, resolving meant two Cosmos metadata
-  round trips: `CreateDatabaseIfNotExistsAsync` and `CreateContainerIfNotExistsAsync`, each of which
-  reads before it creates. Nothing cached the result, so every operation paid both for the life of
-  the process. (With the flag off, `GetDatabase`/`GetContainer` are local constructions and never
-  touched the network — so this affected the default configuration specifically.)
+  Every repository call — read, write, delete, count, query — began by resolving its container, and
+  nothing cached the result. What that cost depends on `IsAutoResourceCreationEnabled`:
+
+  - **Off** (the production posture): `GetDatabase`/`GetContainer` are local constructions that never
+    touch the network, so there is no latency change. What goes away is per-operation overhead — a
+    keyed DI resolve, two SDK object allocations, and an async state machine on every read and write.
+  - **On** (the default, and how development and bootstrapping run): resolving meant two Cosmos
+    metadata round trips — `CreateDatabaseIfNotExistsAsync` and `CreateContainerIfNotExistsAsync`,
+    each of which reads before it creates — paid on every operation for the life of the process.
 
   While the database and container did not yet exist, each of those reads returned **404** — so
   seeding a fresh service emitted a stream of expected not-founds through logs and, with distributed

@@ -52,10 +52,9 @@ internal sealed class ContainerFactory<TEntity>(
 				() => this.ResolveContainerAsync(k),
 				LazyThreadSafetyMode.ExecutionAndPublication));
 
-		// Every repository operation begins here, and after the first resolution the task is already
-		// complete — so return it directly rather than routing through an async method, which would
-		// allocate a state machine and a second task on every read and write. A faulted task is not
-		// "completed successfully", so failures still take the path below and evict.
+		// Every repository operation begins here. After successful initialization, return
+		// the cached task directly. Incomplete, canceled, or faulted initialization is
+		// awaited through the slower path so a failed cache entry can be removed.
 		var resolution = lazy.Value;
 
 		return resolution.IsCompletedSuccessfully
@@ -86,6 +85,7 @@ internal sealed class ContainerFactory<TEntity>(
 	private async Task<Container> ResolveContainerAsync(string key) {
 
 		var settings = InstanceSettingsRegistry.GetSettings(key);
+		var entityName = typeof(TEntity).FullName;
 
 		try {
 
@@ -101,11 +101,23 @@ internal sealed class ContainerFactory<TEntity>(
 					: provider.UseClient(
 						client => client.GetDatabase(settings.DatabaseId));
 
-			return settings.IsAutoResourceCreationEnabled
+			var container = settings.IsAutoResourceCreationEnabled
 				? await database
 					.CreateContainerIfNotExistsAsync(ContainerProperties)
 					.ConfigureAwait(false)
 				: database.GetContainer(ContainerProperties.Id);
+
+			if (settings.IsAutoResourceCreationEnabled && logger.IsEnabled(LogLevel.Information)) {
+				logger.LogInformation(
+					"Ensured Cosmos container {ContainerId} exists in database {DatabaseId} " +
+					"for entity {EntityType} using service key {ServiceKey}.",
+					ContainerProperties.Id,
+					settings.DatabaseId,
+					entityName,
+					key);
+			}
+
+			return container;
 
 		} catch (Exception ex) {
 
@@ -116,7 +128,7 @@ internal sealed class ContainerFactory<TEntity>(
 				"Automatic resource creation enabled: {AutoCreationEnabled}.",
 				ContainerProperties.Id,
 				settings.DatabaseId,
-				typeof(TEntity).FullName,
+				entityName,
 				key,
 				settings.IsAutoResourceCreationEnabled);
 
@@ -129,7 +141,7 @@ internal sealed class ContainerFactory<TEntity>(
 	private static ContainerProperties GetContainerProperties() {
 
 		var itemType = typeof(TEntity);
-		itemType.IsItem();
+		itemType.EnsureIsItemType();
 
 		var containerName =
 			ContainerNameResolver.GetContainerName(itemType);

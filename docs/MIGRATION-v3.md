@@ -13,35 +13,39 @@ kind that should be announced rather than discovered:
 
 ## Container resolution is cached per service key
 
-Every repository call — read, write, delete, count, query — began by resolving its container. With
-`IsAutoResourceCreationEnabled` on, resolving meant two Cosmos metadata round trips:
-`CreateDatabaseIfNotExistsAsync` and `CreateContainerIfNotExistsAsync`, each of which reads before it
-creates. Nothing cached the result, so every operation paid both, for the life of the process.
+Every repository call — read, write, delete, count, query — began by resolving its container, and
+nothing cached the result. What that cost depends entirely on how you have
+`IsAutoResourceCreationEnabled` set, so find yourself below.
+
+### If auto-creation is off — the production posture
+
+`GetDatabase`/`GetContainer` are local constructions that never touch the network, so there were no
+round trips to remove and **no latency change to expect**. What goes away is per-operation overhead:
+a keyed DI resolve, two SDK object allocations, and an async state machine, on every read and write.
+Less allocation pressure on a hot path. Nothing to check, nothing to change.
+
+### If auto-creation is on — development, bootstrapping, and the default
+
+Resolving meant two Cosmos metadata round trips: `CreateDatabaseIfNotExistsAsync` and
+`CreateContainerIfNotExistsAsync`, each of which reads before it creates. Every operation paid both,
+for the life of the process. And while the database and container did not yet exist, each of those
+reads returned 404 — so a fresh service emitted a stream of expected not-founds through logs and,
+with distributed tracing enabled, through telemetry as failed dependency calls.
 
 **That flag defaults to `true`**, so this applied to any deployment that had not explicitly turned it
-off — not only local development. With it off, `GetDatabase`/`GetContainer` are local constructions
-that never touch the network, and this section does not apply to you.
+off. If you have Cosmos metadata call volume on a dashboard, expect it to drop sharply.
 
-Two consequences, and the second is the one people noticed:
+**One behavioural change here:** auto-creation now runs once per key per process rather than on every
+operation, so a database or container deleted underneath a running process is no longer silently
+recreated by the next call — operations fail until restart. If you were relying on that self-healing,
+it was costing two round trips per operation to provide, and it is a development convenience rather
+than something to depend on in production.
 
-- **Cost.** Two extra round trips on every operation, forever, even once everything exists.
-- **Noise.** While the database and container did not yet exist, each of those reads returned 404 —
-  so seeding a fresh service produced a stream of expected not-founds in logs, and in telemetry as
-  failed dependency calls, roughly two per item written.
+### Both configurations
 
-Resolution now happens once per service key and is single-flighted, so a burst of concurrent first
-callers produces one resolution rather than one each. Failures are not cached — a transient error
-during startup would otherwise be permanent for the process.
-
-**What to check:** if you have alerting or dashboards keyed on Cosmos metadata call volume, expect
-it to drop sharply. That is the fix working.
-
-**The one behavioural change to be aware of:** auto-creation runs once per key per process rather
-than on every operation, so a database or container deleted underneath a running process is no
-longer silently recreated by the next call — operations fail until restart. This only applies when
-`IsAutoResourceCreationEnabled` is on, which is a development convenience rather than a production
-posture. If you were relying on continuous self-healing, that reliance was costing two round trips
-per operation to provide.
+Resolution is single-flighted, so a burst of concurrent first callers produces one resolution rather
+than one each. Failures are not cached — a transient error during startup would otherwise be
+permanent for the process.
 
 ## A point read that finds nothing logs at Debug
 
