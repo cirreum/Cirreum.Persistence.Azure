@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A point read that finds nothing now logs at `Debug` instead of `Error`.** Event `20301` fired at
+  `Error` severity for every miss — a 404 from Cosmos, or an item present but soft-deleted — even
+  though the repository translates both into `NotFoundException`, which is the outcome `TryGet`
+  semantics, existence probes and `Result`-pipeline mapping routinely expect. Every legitimate miss
+  therefore reached production telemetry as a false alarm and could trip log-based alerting.
+
+  Both of the event's call sites raise it for an ordinary miss, so this is not a narrowing of when
+  `Error` is used — it is the whole event. Nothing else in the package logged a miss at `Error`; the
+  one remaining `Error` (`ContainerFactory`, "failed to get container") is a genuine fault and is
+  unchanged.
+
+  **The event id `20301` is deliberately unchanged**, so log filters keyed on the number keep
+  working. What changes is the severity, the message text, and the event name — `CosmosPointReadException`
+  becomes `CosmosPointReadMiss`. The exception is still attached, so Cosmos diagnostics and the RU
+  charge remain available to anyone enabling `Debug` for this category.
+
+### Removed
+
+- A stale duplicate `CHANGELOG.md` at the repository root, superseded by `docs/CHANGELOG.md` when the
+  repo adopted the standard layout. It had been frozen at `2.0.0` since 2026-04-25 while the package
+  shipped through `2.1.5`, and nothing referenced it — but it was the first thing a visitor to the
+  repository saw.
+
 ## [2.1.5] - 2026-07-24
 
 ### Updated

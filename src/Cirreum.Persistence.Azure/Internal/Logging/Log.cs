@@ -99,13 +99,22 @@ internal static partial class Log {
 		string Id, Exception? exception);
 
 
-	// Errors
+	// A point read that found nothing. Debug, not Error: both callers raise it for an ordinary miss
+	// — a 404 from Cosmos, or an item present but soft-deleted — which the repository turns into
+	// NotFoundException, the outcome TryGet semantics and existence probes routinely expect. At Error
+	// every legitimate miss reached production telemetry as a false alarm and could trip log-based
+	// alerting. The exception is still attached, so the Cosmos diagnostics and RU charge remain
+	// available to anyone who turns Debug on for this category.
+	//
+	// The event id stays in the 20_301+ band despite no longer being an error: the number is what
+	// consumers filter on in their log pipeline, and moving it would break those filters far more
+	// disruptively than the severity change it would be tidying up after.
 
 	[LoggerMessage(
-		EventId = EventIds.CosmosPointReadExceptionId,
-		Level = LogLevel.Error,
-		Message = "Point read encountered an exception for item type {CosmosItemType} total RU cost {CosmosOperationRUCharge}")]
-	public static partial void PointReadException(this ILogger logger,
+		EventId = EventIds.CosmosPointReadMissId,
+		Level = LogLevel.Debug,
+		Message = "Point read found no item of type {CosmosItemType}, total RU cost {CosmosOperationRUCharge}")]
+	public static partial void PointReadMiss(this ILogger logger,
 		string CosmosItemType, double CosmosOperationRUCharge, Exception? exception);
 
 

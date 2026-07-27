@@ -55,9 +55,9 @@ internal static class LoggerExtensions {
 
 
 
-	// Errors
-	public static void LogPointReadException<TEntity>(this ILogger logger, double ruCharge, Exception exception) where TEntity : IEntity =>
-		logger.PointReadException(typeof(TEntity).Name, ruCharge, exception);
+	// A point read that found nothing — an ordinary miss, logged at Debug. See Log.PointReadMiss.
+	public static void LogPointReadMiss<TEntity>(this ILogger logger, double ruCharge, Exception exception) where TEntity : IEntity =>
+		logger.PointReadMiss(typeof(TEntity).Name, ruCharge, exception);
 
 
 }

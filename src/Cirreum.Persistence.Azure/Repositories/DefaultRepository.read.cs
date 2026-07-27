@@ -34,7 +34,7 @@ sealed partial class DefaultRepository<TEntity> {
 				item is IDeletableEntity deletable &&
 				deletable.IsDeleted) {
 				var notFoundEx = new NotFoundException(id);
-				this._logger.LogPointReadException<TEntity>(response.RequestCharge, notFoundEx);
+				this._logger.LogPointReadMiss<TEntity>(response.RequestCharge, notFoundEx);
 				throw notFoundEx;
 			}
 
@@ -44,7 +44,7 @@ sealed partial class DefaultRepository<TEntity> {
 			return item;
 
 		} catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound) {
-			this._logger.LogPointReadException<TEntity>(e.RequestCharge, e);
+			this._logger.LogPointReadMiss<TEntity>(e.RequestCharge, e);
 			throw new NotFoundException(id);
 		}
 

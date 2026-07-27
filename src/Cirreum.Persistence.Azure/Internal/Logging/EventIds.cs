@@ -79,9 +79,13 @@ internal static class EventIds {
 	//
 	//20_301 - 20_400 Error Events
 	//
-	internal const int CosmosPointReadExceptionId = 20_301;
-	public static readonly EventId CosmosPointReadException = new(
-		CosmosPointReadExceptionId,
-		nameof(CosmosPointReadException));
+	// 20_301 no longer belongs to this band by severity — it is emitted at Debug, because both of its
+	// call sites raise it for an ordinary point-read miss rather than a fault. The number stays here
+	// anyway: consumers filter their logs on the id, and renumbering would break those filters to
+	// tidy up a comment. See Log.PointReadMiss.
+	internal const int CosmosPointReadMissId = 20_301;
+	public static readonly EventId CosmosPointReadMiss = new(
+		CosmosPointReadMissId,
+		nameof(CosmosPointReadMiss));
 
 }
