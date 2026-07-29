@@ -119,6 +119,46 @@ The `Name` property is used to resolve the connection string via `Configuration.
 >
 > Cost is bounded either way: container resolution is cached per service key, so the existence checks run once per key per process rather than on every repository operation.
 
+## Identity-Based Authentication (Entra)
+
+Set the connection value to the **account endpoint URI** instead of a key-based connection string
+and the provider authenticates with Entra. The nested `Credential` block (shared across Cirreum
+providers) selects how:
+
+```json
+"default": {
+  "Name": "MyCosmosDb",
+  "DatabaseId": "MyDatabase",
+  "Identifier": "<tenant-id, optional>",
+  "IsAutoResourceCreationEnabled": false,
+  "Credential": { "Mode": "ManagedIdentity", "IdentityId": "<user-assigned-client-id>" }
+}
+```
+
+| Mode | Credential | When to use |
+| --- | --- | --- |
+| `Default` | `DefaultAzureCredential` | General-purpose; tries the full credential chain |
+| `ManagedIdentity` | `ManagedIdentityCredential` | Production; deterministic, no chain fallback |
+| `Developer` | Visual Studio → Azure CLI → Azure PowerShell | Local runs as the signed-in developer |
+
+`IdentityId` selects a user-assigned managed identity (under `Default` it pins the chain's
+managed-identity leg; ignored by `Developer`). `Identifier` sets the Entra tenant for the
+tenant-aware credentials. Omitting the `Credential` block entirely means `Default`.
+
+Two configurations are rejected at startup rather than discovered at runtime:
+
+- **Identity auth + `IsAutoResourceCreationEnabled`** — not supported. Cosmos DB data-plane RBAC
+  cannot create databases or containers, so auto-creation under identity auth would 403 at the
+  first missing resource. Set `"IsAutoResourceCreationEnabled": false` and provision resources as
+  infrastructure-as-code.
+- **A `Credential` block with a key-based connection string** — a contradiction; identity
+  configuration cannot apply to key authentication.
+
+The identity needs **data-plane RBAC** on the account — the built-in *Cosmos DB Data Contributor*
+role covers item operations and the `readMetadata` action the health check needs to read the
+database. Control-plane (ARM) roles like account *Contributor* do not grant data access, and
+data-plane roles do not grant resource creation — which is exactly why auto-creation is rejected.
+
 ## Tuning Cosmos HTTP traffic
 
 Gateway traffic goes through a named `IHttpClientFactory` client, so you can shape the handler under Cosmos without touching every other client in the application:

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **Identity-based authentication with `IsAutoResourceCreationEnabled` is rejected at startup.**
+  When the connection value is an account endpoint URI (identity auth), registration throws
+  `NotSupportedException` if `IsAutoResourceCreationEnabled` is `true`: Cosmos DB data-plane RBAC
+  cannot create databases or containers, so auto-creation under identity auth 403s at the first
+  missing resource — at runtime, in production, after startup looked healthy. The flag defaults to
+  `true`, so **every existing endpoint-auth configuration must now set it to `false` explicitly**
+  and provision resources as infrastructure-as-code. Key-based connection strings are unaffected.
+  See `MIGRATION-v4.md`.
+
+### Added
+
+- **Configurable credentials for identity-based authentication** via the nested `Credential` block
+  from `Cirreum.ServiceProvider` 1.1.0 (`Mode`: `Default` / `ManagedIdentity` / `Developer`, plus
+  optional `IdentityId` selecting a user-assigned managed identity). The endpoint path previously
+  hardcoded `new DefaultAzureCredential()` with no options — no tenant pinning, no identity
+  selection.
+- `Identifier` on the instance settings now resolves as the Entra tenant, forwarded to every
+  tenant-aware credential.
+- A `Credential` block alongside a key-based connection string fails at startup with
+  `InvalidOperationException` — identity configuration cannot apply to key authentication, and
+  silently ignoring it would misrepresent how the instance authenticates.
+- An unrecognized `CredentialMode` value fails at startup instead of silently degrading to the
+  default chain.
+
 ## [3.0.0] - 2026-07-27
 
 ### Added

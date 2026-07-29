@@ -1,11 +1,13 @@
 ﻿namespace Cirreum.Persistence.Extensions;
 
+using Azure.Core;
 using Cirreum.Authorization.Resources;
 using Cirreum.Persistence;
 using Cirreum.Persistence.Configuration;
 using Cirreum.Persistence.Health;
 using Cirreum.Persistence.Internal;
 using Cirreum.Persistence.Internal.Providers;
+using Cirreum.Providers.Configuration;
 using Cirreum.ServiceProvider.Configuration;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,6 +25,22 @@ internal static class CosmosRegistrationExtensions {
 		this IServiceCollection services,
 		string serviceKey,
 		AzureCosmosInstanceSettings settings) {
+
+		// Fail at registration, not first use: data-plane RBAC cannot create databases or
+		// containers, so auto-creation under identity auth would 403 at the first missing
+		// resource — at runtime, after startup looked healthy.
+		if (settings.AccountEndpoint is not null && settings.IsAutoResourceCreationEnabled) {
+			throw new NotSupportedException(
+				"Identity-based authentication with IsAutoResourceCreationEnabled is not a supported configuration: " +
+				"Cosmos DB data-plane RBAC cannot create databases or containers. Set " +
+				"\"IsAutoResourceCreationEnabled\": false and provision resources as infrastructure-as-code.");
+		}
+
+		if (settings.AccountEndpoint is null && settings.Credential is not null) {
+			throw new InvalidOperationException(
+				"A Credential block is configured but the connection value is a key-based connection string. " +
+				"Identity-based authentication requires the account endpoint URI as the connection value.");
+		}
 
 		// Track keyed instance settings
 		InstanceSettingsRegistry.RegisterKeyedSettings(serviceKey, settings);
@@ -92,8 +110,39 @@ internal static class CosmosRegistrationExtensions {
 
 		return new DefaultCosmosClientProvider(
 			settings.AccountEndpoint is not null ?
-			new CosmosClient(settings.AccountEndpoint.OriginalString, new DefaultAzureCredential(), clientOptions) :
+			new CosmosClient(settings.AccountEndpoint.OriginalString, settings.GetCredential(), clientOptions) :
 			new CosmosClient(settings.ConnectionString, clientOptions));
+	}
+
+	private static TokenCredential GetCredential(
+		this AzureCosmosInstanceSettings settings) {
+
+		var tenantId = string.IsNullOrWhiteSpace(settings.Identifier) ? null : settings.Identifier;
+		var credential = settings.Credential ?? new CredentialSettings();
+		var identityId = string.IsNullOrWhiteSpace(credential.IdentityId) ? null : credential.IdentityId;
+
+		return credential.Mode switch {
+
+			CredentialMode.Default => new DefaultAzureCredential(new DefaultAzureCredentialOptions {
+				TenantId = tenantId,
+				ManagedIdentityClientId = identityId,
+			}),
+
+			CredentialMode.ManagedIdentity => new ManagedIdentityCredential(
+				identityId is null
+					? ManagedIdentityId.SystemAssigned
+					: ManagedIdentityId.FromUserAssignedClientId(identityId)),
+
+			CredentialMode.Developer => new ChainedTokenCredential(
+				new VisualStudioCredential(new VisualStudioCredentialOptions { TenantId = tenantId }),
+				new AzureCliCredential(new AzureCliCredentialOptions { TenantId = tenantId }),
+				new AzurePowerShellCredential(new AzurePowerShellCredentialOptions { TenantId = tenantId })),
+
+			_ => throw new InvalidOperationException(
+				$"CredentialMode '{credential.Mode}' is not supported by the Azure Cosmos DB provider."),
+
+		};
+
 	}
 
 	private static HttpClient CreateCosmosHttpClient(this IServiceProvider serviceProvider) {
