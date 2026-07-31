@@ -15,8 +15,13 @@
 		<PackageReference Include="Cirreum.Persistence.NoSql" Version="1.0.11" />
 		<PackageReference Include="Microsoft.Azure.Cosmos" Version="3.62.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="Cirreum.Domain" Version="2.0.0" />
+		<PackageReference Include="Cirreum.Domain" Version="3.0.0" />
 		<PackageReference Include="Cirreum.ServiceProvider" Version="1.1.0" />
+	</ItemGroup>
+
+	<!-- InternalsVisibleTo: Local Development Only -->
+	<ItemGroup Label="InternalsVisibleTo" Condition="'$(IsLocalBuild)' == 'true'">
+		<InternalsVisibleTo Include="Cirreum.Persistence.Azure.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>

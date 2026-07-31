@@ -34,6 +34,35 @@ sealed partial class DefaultProtectedRepository<TEntity>
 	private readonly IRepository<TEntity> _repository;
 	private readonly IResourceAccessEvaluator _evaluator;
 	private readonly ILogger<DefaultProtectedRepository<TEntity>> _logger;
+	private readonly System.Text.Json.JsonNamingPolicy _namingPolicy;
+	private string? _ancestorsJsonName;
+	private string? _parentJsonName;
+
+	/// <summary>
+	/// The document property name for <see cref="IProtectedResource.AncestorResourceIds"/> under
+	/// the instance's configured serializer — honors <c>[JsonPropertyName]</c>, else applies the
+	/// configured naming policy. Keeps ancestor patches and the cascade query aligned with how the
+	/// documents are actually serialized.
+	/// </summary>
+	private string AncestorsJsonName =>
+		this._ancestorsJsonName ??= this.ResolveJsonName(nameof(IProtectedResource.AncestorResourceIds));
+
+	/// <inheritdoc cref="AncestorsJsonName"/>
+	private string ParentJsonName =>
+		this._parentJsonName ??= this.ResolveJsonName(nameof(IProtectedResource.ParentResourceId));
+
+	private string ResolveJsonName(string propertyName) {
+		var property = typeof(TEntity).GetProperty(propertyName);
+		var attribute = property?.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonPropertyNameAttribute), true);
+		if (attribute is [System.Text.Json.Serialization.JsonPropertyNameAttribute jsonAttribute, ..]) {
+			return jsonAttribute.Name;
+		}
+		return this._namingPolicy.ConvertName(propertyName);
+	}
+
+	private static System.Text.Json.JsonNamingPolicy ResolveNamingPolicy(string serviceKey) =>
+		Internal.InstanceSettingsRegistry.TryGetSettings(serviceKey)?.SerializationOptions.MappedNamingPolicy
+			?? System.Text.Json.JsonNamingPolicy.CamelCase;
 
 	/// <summary>
 	/// Checks (cached per type) whether <typeparamref name="TEntity"/> has overridden
@@ -67,6 +96,7 @@ sealed partial class DefaultProtectedRepository<TEntity>
 		this._repository = repository;
 		this._evaluator = evaluator;
 		this._logger = logger;
+		this._namingPolicy = ResolveNamingPolicy(Cirreum.ServiceProvider.Configuration.ServiceProviderSettings.DefaultKey);
 	}
 
 	/// <summary>
@@ -81,6 +111,7 @@ sealed partial class DefaultProtectedRepository<TEntity>
 		this._repository = services.GetRequiredKeyedService<IRepository<TEntity>>(key);
 		this._evaluator = evaluator;
 		this._logger = logger;
+		this._namingPolicy = ResolveNamingPolicy(key);
 	}
 
 }

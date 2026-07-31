@@ -1,13 +1,28 @@
 namespace Cirreum.Persistence.Internal;
 
-using Microsoft.Azure.Cosmos;
 using System.Reflection;
 
-sealed class InternalPatchOperation(PropertyInfo propertyInfo, object? newValue, PatchOperationType type) {
+sealed class InternalPatchOperation {
 
-	public PatchOperationType Type { get; } = type;
+	public InternalPatchOperation(PropertyInfo propertyInfo, object? newValue, PatchOperationType type) {
+		this.PropertyInfo = propertyInfo;
+		this.NewValue = newValue;
+		this.Type = type;
+	}
 
-	public PropertyInfo PropertyInfo { get; } = propertyInfo;
+	public InternalPatchOperation(string path, object? newValue, PatchOperationType type) {
+		this.Path = path;
+		this.NewValue = newValue;
+		this.Type = type;
+	}
 
-	public object? NewValue { get; } = newValue;
+	public PatchOperationType Type { get; }
+
+	/// <summary>Set for expression-based operations; null for path-based operations.</summary>
+	public PropertyInfo? PropertyInfo { get; }
+
+	/// <summary>Set for path-based operations (no leading slash); null for expression-based operations.</summary>
+	public string? Path { get; }
+
+	public object? NewValue { get; }
 }

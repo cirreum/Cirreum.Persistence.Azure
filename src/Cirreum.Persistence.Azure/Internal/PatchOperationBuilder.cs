@@ -13,8 +13,12 @@ sealed class PatchOperationBuilder<TEntity>
 	: IPatchOperationBuilder<TEntity>
 	where TEntity : IEntity {
 
+	public PatchOperationBuilder(JsonNamingPolicy? namingPolicy = null) {
+		this._namingStrategy = namingPolicy ?? JsonNamingPolicy.CamelCase;
+	}
+
 	private readonly List<PatchOperation> _patchOperations = [];
-	private readonly JsonNamingPolicy _namingStrategy = JsonNamingPolicy.CamelCase;
+	private readonly JsonNamingPolicy _namingStrategy;
 	private void CanAddPatchOperation() {
 		if (this._patchOperations.Count > 10) {
 			throw new InvalidOperationException("Cannot exceed 10 patch operations on a single entity.");
@@ -109,6 +113,7 @@ sealed class PatchOperationBuilder<TEntity>
 		this.CanAddPatchOperation();
 		// Ensure the path starts with a forward slash
 		propertyPath = PatchOperationBuilder<TEntity>.EnsureLeadingSlash(propertyPath);
+		this._rawPatchOperations.Add(new InternalPatchOperation(propertyPath.TrimStart('/'), value, PatchOperationType.Add));
 		this._patchOperations.Add(PatchOperation.Add(propertyPath, value));
 		return this;
 	}
@@ -117,6 +122,7 @@ sealed class PatchOperationBuilder<TEntity>
 	public IPatchOperationBuilder<TEntity> SetByPath<TValue>(string propertyPath, TValue value) {
 		this.CanAddPatchOperation();
 		propertyPath = PatchOperationBuilder<TEntity>.EnsureLeadingSlash(propertyPath);
+		this._rawPatchOperations.Add(new InternalPatchOperation(propertyPath.TrimStart('/'), value, PatchOperationType.Set));
 		this._patchOperations.Add(PatchOperation.Set(propertyPath, value));
 		return this;
 	}
@@ -125,6 +131,7 @@ sealed class PatchOperationBuilder<TEntity>
 	public IPatchOperationBuilder<TEntity> ReplaceByPath<TValue>(string propertyPath, TValue value) {
 		this.CanAddPatchOperation();
 		propertyPath = PatchOperationBuilder<TEntity>.EnsureLeadingSlash(propertyPath);
+		this._rawPatchOperations.Add(new InternalPatchOperation(propertyPath.TrimStart('/'), value, PatchOperationType.Replace));
 		this._patchOperations.Add(PatchOperation.Replace(propertyPath, value));
 		return this;
 	}
@@ -133,6 +140,7 @@ sealed class PatchOperationBuilder<TEntity>
 	public IPatchOperationBuilder<TEntity> RemoveByPath(string propertyPath) {
 		this.CanAddPatchOperation();
 		propertyPath = PatchOperationBuilder<TEntity>.EnsureLeadingSlash(propertyPath);
+		this._rawPatchOperations.Add(new InternalPatchOperation(propertyPath.TrimStart('/'), null, PatchOperationType.Remove));
 		this._patchOperations.Add(PatchOperation.Remove(propertyPath));
 		return this;
 	}

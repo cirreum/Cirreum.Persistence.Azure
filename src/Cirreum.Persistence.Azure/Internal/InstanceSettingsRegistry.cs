@@ -18,4 +18,8 @@ internal static class InstanceSettingsRegistry {
 		throw new InvalidOperationException($"Settings for Key '{key}' not found.");
 	}
 
+	public static AzureCosmosInstanceSettings? TryGetSettings(string key) {
+		return keyedSettings.TryGetValue(key, out var settings) ? settings : null;
+	}
+
 }

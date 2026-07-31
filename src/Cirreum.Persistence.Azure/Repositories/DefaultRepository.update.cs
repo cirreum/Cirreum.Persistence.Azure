@@ -87,7 +87,8 @@ sealed partial class DefaultRepository<TEntity> {
 		string? etag = default,
 		CancellationToken cancellationToken = default) {
 
-		var patchOperationBuilder = new PatchOperationBuilder<TEntity>();
+		var patchOperationBuilder = new PatchOperationBuilder<TEntity>(
+			this._settings.SerializationOptions.MappedNamingPolicy);
 
 		builder(patchOperationBuilder);
 

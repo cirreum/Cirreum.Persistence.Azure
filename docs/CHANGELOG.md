@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-07-30
+
+### Security
+
+- **`IProtectedRepository<T>.CreateAsync` verifies the authorized parent IS the persisted
+  parent.** It previously authorized the caller against the `parentResourceId` argument without
+  checking it matched the entity's declared `ParentResourceId` — a caller could authorize against
+  a parent they held rights on while persisting the entity under (and inheriting the ACL of) a
+  different parent nobody authorized. A mismatch now throws `ArgumentException` before any
+  permission check or write.
+
+### Fixed
+
+- **ACL ancestor-chain patches and the move-cascade query now use the instance's configured
+  serializer naming** (`[JsonPropertyName]` → configured naming policy) instead of hardcoded
+  camelCase strings. Under a snake/kebab naming policy the previous behavior silently wrote a
+  phantom camelCase property, leaving the real ancestor chain unmaintained. The expression-based
+  `PatchOperationBuilder` paths honor the configured naming policy for the same reason.
+- **`CreateAsync` returns the persisted entity** — after the ancestor-chain patch, the entity is
+  re-read so callers observe the materialized `AncestorResourceIds` instead of the pre-patch
+  values.
+- **In-memory repository applies path-based patch operations.** `SetByPath`/`ReplaceByPath`/
+  `AddByPath`/`RemoveByPath` were silently ignored by `InMemoryRepository.UpdatePartialAsync`
+  (only expression-based operations were applied), so the protected repository's ancestor patches
+  were no-ops in tests. Path operations now resolve back to the entity property
+  (`[JsonPropertyName]` → camelCase → case-insensitive name) and are applied. The partial-update
+  item lookup also compared the raw partition-key string to `PartitionKey.ToString()` (the JSON
+  form) and could never match — it now compares constructed `PartitionKey` values as
+  `RestoreAsync` does.
+- **`MoveAsync` documents its cascade semantics** — the descendant cascade is not atomic;
+  re-running the move with the same target heals a partially-updated tree.
+- **First test suite** (`tests/Cirreum.Persistence.Azure.Tests`): protected-repository create/move
+  enforcement, parent cross-check, ancestor materialization, patch-path naming, and in-memory
+  patch application. README and internal docs corrected (the ACL surface intentionally does not
+  extend `IRepository<T>`; the authorization-pipeline dependency and in-memory raw-SQL limitation
+  are now stated).
+
+### Updated
+
+- Re-pinned `Cirreum.Domain` `2.0.0` → `3.0.0` (restores operation-authorization enforcement;
+  carries the `IPolicyAuthorizer` rename — see Cirreum.Domain `MIGRATION-v3.md`).
+
 ## [4.0.0] - 2026-07-29
 
 ### Breaking

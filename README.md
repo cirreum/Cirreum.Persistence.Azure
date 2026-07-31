@@ -261,6 +261,22 @@ Soft-deleted entities are filtered out by default on reads. Pass `includeDeleted
 
 For entities that carry embedded ACLs, inject `IProtectedRepository<T>` instead of `IRepository<T>`. The protected repository composes `IResourceAccessEvaluator` and runs the ACL check before every operation, walking the resource hierarchy and applying root defaults as needed.
 
+> **Requires an authorized invocation.** The evaluator reads the caller from the authorization
+> context that the operation-authorization pipeline populates before the handler runs. Calling any
+> `IProtectedRepository<T>` member outside that flow — a background service, queue consumer,
+> startup initializer, or hosted job — throws `InvalidOperationException` rather than evaluating
+> against a missing caller.
+
+> **Create authorizes the declared parent.** `CreateAsync(entity, parentResourceId, permission, …)`
+> requires `parentResourceId` to equal the entity's own `ParentResourceId` — the parent the
+> permission is checked against must be the parent the entity is persisted under (and whose ACL it
+> inherits). A mismatch throws `ArgumentException` before any check or write.
+
+> **Move cascades are not atomic.** `MoveAsync` patches each descendant's ancestor chain
+> individually; a fault or cancellation mid-cascade leaves the tree partially updated. Re-running
+> `MoveAsync` with the same target heals it — the cascade recomputes every descendant's chain from
+> current state.
+
 ### Defining a protected entity
 
 ```csharp
@@ -327,6 +343,12 @@ Every call is logged at Info level with the entity type, caller member, file, an
 ## In-Memory Testing
 
 For unit testing, use the built-in in-memory repository:
+
+> **Limitation:** the in-memory repository does not support raw-SQL queries
+> (`QueryAsync(string, …)` throws `NotImplementedException`), so `MoveAsync`'s descendant
+> cascade cannot be exercised in-memory. Expression/path-based patch operations
+> (`UpdatePartialAsync`) are fully applied, including the protected repository's ancestor-chain
+> patches.
 
 ```csharp
 // Register in-memory repository for testing

@@ -15,6 +15,17 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 		Permission permission,
 		CancellationToken cancellationToken = default) {
 
+		// The authorized parent and the persisted parent must be the same resource — otherwise
+		// the caller could authorize against a parent they hold rights on while the entity
+		// declares (and inherits the ACL of) a different parent nobody authorized.
+		if (!string.Equals(value.ParentResourceId, parentResourceId, StringComparison.Ordinal)) {
+			throw new ArgumentException(
+				$"parentResourceId '{parentResourceId ?? "<null>"}' does not match the entity's declared " +
+				$"{nameof(IProtectedResource.ParentResourceId)} '{value.ParentResourceId ?? "<null>"}'. " +
+				"The parent the permission is checked against must be the parent the entity is persisted under.",
+				nameof(parentResourceId));
+		}
+
 		// Check permission against the parent resource (or root defaults when null).
 		var result = await this._evaluator.CheckAsync<TEntity>(parentResourceId, permission, cancellationToken)
 			.ConfigureAwait(false);
@@ -27,23 +38,23 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 			.ConfigureAwait(false);
 
 		// Auto-populate the materialized ancestor path if the entity type supports it.
-		await this.TryPopulateAncestorsAsync(created, parentResourceId, cancellationToken)
+		// Returns the refreshed entity so the caller observes the persisted ancestor chain.
+		return await this.TryPopulateAncestorsAsync(created, parentResourceId, cancellationToken)
 			.ConfigureAwait(false);
-
-		return created;
 	}
 
 	/// <summary>
 	/// Computes and patches the <see cref="IProtectedResource.AncestorResourceIds"/> on
-	/// a newly created entity using a Cosmos patch operation.
+	/// a newly created entity using a Cosmos patch operation. Returns the refreshed entity
+	/// when a patch was applied; otherwise returns the entity unchanged.
 	/// </summary>
-	private async ValueTask TryPopulateAncestorsAsync(
+	private async ValueTask<TEntity> TryPopulateAncestorsAsync(
 		TEntity entity,
 		string? parentResourceId,
 		CancellationToken cancellationToken) {
 
 		if (!SupportsAncestorPath() || parentResourceId is null) {
-			return;
+			return entity;
 		}
 
 		// Build ancestor chain: [parentId, ...parent.AncestorResourceIds]
@@ -71,11 +82,18 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 			}
 		}
 
-		// Patch the Cosmos document directly — works with init-only properties.
+		// Patch the Cosmos document directly — works with init-only properties. The path is
+		// resolved against the instance's configured naming policy / [JsonPropertyName] so the
+		// patch targets the property the serializer actually wrote.
 		await this._repository.UpdatePartialAsync(
 			entity.Id,
-			ops => ops.SetByPath("ancestorResourceIds", (IReadOnlyList<string>)ancestors),
+			ops => ops.SetByPath(this.AncestorsJsonName, (IReadOnlyList<string>)ancestors),
 			cancellationToken: cancellationToken)
+			.ConfigureAwait(false);
+
+		// Re-read so the returned entity reflects the persisted ancestor chain (properties may
+		// be init-only, so the patch cannot be mirrored onto the in-memory instance).
+		return await this._repository.GetAsync(entity.Id, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 	}
 

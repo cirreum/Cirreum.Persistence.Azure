@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <File Path="../src/Directory.Build.props" />
+    <Project Path="../src/Cirreum.Persistence.Azure/Cirreum.Persistence.Azure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="Directory.Build.props" />
+    <Project Path="Cirreum.Persistence.Azure.Tests/Cirreum.Persistence.Azure.Tests.csproj" />
+  </Folder>
+</Solution>

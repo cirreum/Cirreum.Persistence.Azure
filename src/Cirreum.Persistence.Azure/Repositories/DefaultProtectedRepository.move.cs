@@ -51,12 +51,13 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 				$"Cannot move {typeof(TEntity).Name} '{value.ResourceId}' under '{newParentResourceId}': would create a cycle.");
 		}
 
-		// Patch the entity's parentResourceId and ancestorResourceIds
+		// Patch the entity's parent and ancestor chain. Paths are resolved against the
+		// instance's configured naming policy / [JsonPropertyName].
 		await this._repository.UpdatePartialAsync(
 			value.Id,
 			ops => ops
-				.SetByPath("parentResourceId", newParentResourceId)
-				.SetByPath("ancestorResourceIds", (IReadOnlyList<string>)newAncestors),
+				.SetByPath(this.ParentJsonName, newParentResourceId)
+				.SetByPath(this.AncestorsJsonName, (IReadOnlyList<string>)newAncestors),
 			cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 
@@ -70,14 +71,21 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 	/// <summary>
 	/// Finds all descendants of the moved entity and recomputes their ancestor chains.
 	/// </summary>
+	/// <remarks>
+	/// The cascade is not atomic: each descendant is patched individually, so a fault or
+	/// cancellation mid-cascade leaves descendants processed so far on the new chain and the
+	/// remainder on the old one. Re-running <see cref="MoveAsync"/> with the same target heals
+	/// the tree — the cascade recomputes every descendant's chain from current state.
+	/// </remarks>
 	private async ValueTask CascadeAncestorUpdateAsync(
 		string movedEntityResourceId,
 		List<string> movedEntityNewAncestors,
 		CancellationToken cancellationToken) {
 
 		// Query descendants: entities that have the moved entity in their ancestor chain.
+		// The property name matches the instance's configured serializer.
 		var descendants = await this._repository.QueryAsync(
-			"SELECT * FROM c WHERE ARRAY_CONTAINS(c.ancestorResourceIds, @entityId)",
+			$"SELECT * FROM c WHERE ARRAY_CONTAINS(c.{this.AncestorsJsonName}, @entityId)",
 			[new KeyValuePair<string, string>("@entityId", movedEntityResourceId)],
 			cancellationToken)
 			.ConfigureAwait(false);
@@ -117,7 +125,7 @@ sealed partial class DefaultProtectedRepository<TEntity> {
 
 			await this._repository.UpdatePartialAsync(
 				descendant.Id,
-				ops => ops.SetByPath("ancestorResourceIds", (IReadOnlyList<string>)updatedAncestors),
+				ops => ops.SetByPath(this.AncestorsJsonName, (IReadOnlyList<string>)updatedAncestors),
 				cancellationToken: cancellationToken)
 				.ConfigureAwait(false);
 		}
